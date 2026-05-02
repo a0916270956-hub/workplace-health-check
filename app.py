@@ -5,7 +5,7 @@ import google.generativeai as genai
 # 1. 系統設定與 API 金鑰讀取
 # ==========================================
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    GOOGLE_API_KEY = st.secrets["AIzaSyA5wbhSQwwwL5Wo1UjZ9knVwJ2vsmWYWUM"]
     genai.configure(api_key=GOOGLE_API_KEY)
 except Exception as e:
     st.error("⚠️ 尚未讀取到 API Key！請確認您已在 Streamlit Cloud 後台的 Secrets 填入 GOOGLE_API_KEY。")
