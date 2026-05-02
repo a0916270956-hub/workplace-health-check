@@ -13,33 +13,30 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 自動偵測模型 (終極防 404 機制)
+# 2. 自動偵測模型 (優先使用 Pro 模型)
 # ==========================================
 try:
-    # 自動向 Google 詢問您的金鑰支援哪些模型
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
     if not available_models:
         st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限，可能金鑰已失效。")
         st.stop()
 
-    # 優先選擇最新且穩定的 flash 模型
+    # 預設先抓第一個，但優先尋找清單中的「Pro」高級模型
     selected_model = available_models[0]
     for m in available_models:
-        if "1.5-flash" in m:
+        if "pro" in m.lower():  # 只要模型名稱裡有 pro (例如 gemini-1.5-pro 或 gemini-2.5-pro) 就優先使用
             selected_model = m
             break
             
-    # 在側邊欄顯示狀態，若看到這行代表連線與套件都正常
-    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前使用模型：\n`{selected_model}`")
+    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前使用高級模型：\n`{selected_model}`")
 
 except Exception as e:
-    # 若出現 403 錯誤，通常是因為金鑰被 Google 發現寫在公開網頁而封鎖了
     if "403" in str(e) or "leaked" in str(e).lower():
         st.error("🚨 嚴重錯誤：您的 API 金鑰已因外洩被 Google 封鎖！")
-        st.info("💡 解決步驟：\n1. 請至 Google AI Studio 申請一把全新的金鑰。\n2. 前往 Streamlit 後台 (Manage app > Settings > Secrets)。\n3. 將新金鑰填入 `GOOGLE_API_KEY = \"新金鑰\"` 並儲存。")
+        st.info("💡 解決步驟：請至 Google AI Studio 申請全新金鑰並更新至 Streamlit Secrets。")
     else:
-        st.error(f"⚠️ 讀取模型清單時發生連線錯誤：{e}")
+        st.error(f"⚠️ 讀取模型清單時發生錯誤：{e}")
     st.stop()
 
 # ==========================================
