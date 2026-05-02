@@ -2,90 +2,59 @@ import streamlit as st
 import google.generativeai as genai
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 AI 大腦初始化
 # ==========================================
-try:
-    GOOGLE_API_KEY = st.secrets["AIzaSyA5wbhSQwwwL5Wo1UjZ9knVwJ2vsmWYWUM"]
-    genai.configure(api_key=GOOGLE_API_KEY)
-except Exception as e:
-    st.error("⚠️ 尚未讀取到 API Key！請確認您已在 Streamlit Cloud 後台填入 GOOGLE_API_KEY。")
-    st.stop()
+# 請替換成您申請的 Gemini API Key
+GOOGLE_API_KEY = "請填入您的_API_KEY" 
+genai.configure(api_key=GOOGLE_API_KEY)
 
-# ==========================================
-# 2. 自動偵測模型 (終極防 404 機制)
-# ==========================================
-# 讓程式自動抓取您的金鑰真正支援的模型清單，避免 404 找不到名稱的錯誤
-try:
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    if not available_models:
-        st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限。")
-        st.stop()
-
-    # 優先選擇最新的 flash 模型，若無則選清單內的第一個合法模型
-    selected_model = available_models[0]
-    for m in available_models:
-        if "1.5-flash" in m:
-            selected_model = m
-            break
-            
-    # 在側邊欄顯示目前抓到的正確模型，方便您確認
-    st.sidebar.success(f"✅ 連線成功！\n目前自動選用模型：\n`{selected_model}`")
-
-except Exception as e:
-    st.error(f"⚠️ 讀取模型清單時發生錯誤：{e}")
-    st.stop()
-
-# ==========================================
-# 3. 核心大腦：專業勞動法系統提示詞
-# ==========================================
+# 定義專業的系統提示詞 (System Prompt)
 SYSTEM_PROMPT = """
-你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
+你是一位熟悉台灣勞動法規的「職場友善度健檢顧問」。
 請根據使用者描述的職場狀況，進行客觀分析與評估。
 
 【核心守則】
-1. 展現同理心：首先承接使用者的情緒，給予溫暖與支持的回應。
-2. 嚴格區分歧視類型（法理重點）：若案件涉及不平等待遇，你必須精確判斷並使用正確法規名詞：
-   - 若涉及懷孕、育嬰留停、性別、性傾向或性別氣質受不利對待，請明確歸類為違反《性別平等工作法》的「性別歧視」。
-   - 若涉及年齡、容貌、階級、身心障礙等因素，請明確歸類為違反《就業服務法》的「就業歧視」。
-   - 兩者的法源與地方政府的處理程序完全不同，絕不可混淆。
-3. 勞動條件檢核：若涉及工時、加班費、請假權益受損，請引用《勞動基準法》相關概念進行評估。
-4. 輸出健檢報告：給予 1-100 分綜合評分，並提供具體實用的行政救濟與蒐證建議（如：向地方勞工局申訴、準備出勤證據）。
+1. 展現同理心：先承接使用者的情緒，給予溫暖的回應。
+2. 精準法規分類：在涉及歧視案件時，必須嚴格區分並指明是屬於《性別平等工作法》的「性別歧視」（如孕產、育嬰留停、性別氣質受不利對待），還是屬於《就業服務法》範疇的一般「就業歧視」。分類務必精確，不可混淆。
+3. 評估報告：最後請給出「綜合友善度評分（1-100分）」，並提供具體的自我保護或申訴建議。
 """
 
 # 建立模型實例
-try:
-    model = genai.GenerativeModel(
-        model_name=selected_model,
-        system_instruction=SYSTEM_PROMPT
-    )
-except Exception as e:
-    st.error("⚠️ 模型建立失敗，這通常是 requirements.txt 套件版本未更新所致。")
-    st.stop()
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction=SYSTEM_PROMPT
+)
 
 # ==========================================
-# 4. 網頁介面 (UI) 佈局與對話邏輯
+# 2. 網頁介面 (UI) 佈局
 # ==========================================
-st.set_page_config(page_title="職場友善度 AI 健檢系統", page_icon="⚖️", layout="centered")
-st.title("⚖️ 職場友善度 AI 健檢系統")
-st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況（例如：申請育嬰留停的遭遇、工時問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
+st.set_page_config(page_title="職場友善度 AI 健檢", page_icon="⚖️", layout="centered")
+st.title("⚖️ 職場友善度 AI 健檢顧問")
+st.markdown("歡迎！請簡單描述您在職場上遇到的狀況（例如：工時問題、請假被拒、升遷疑慮等），AI 將為您進行初步的環境友善度評估。")
 
+# ==========================================
+# 3. 聊天紀錄狀態管理 (Session State)
+# ==========================================
+# 確保網頁重新整理時，對話紀錄不會消失
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
 
+# 在畫面上渲染過去的對話紀錄
 for message in st.session_state.chat_session.history:
     role = "user" if message.role == "user" else "assistant"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
+# ==========================================
+# 4. 接收使用者輸入與生成回應
+# ==========================================
+# 網頁下方的對話輸入框
 if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
+    # 顯示使用者的訊息
     st.chat_message("user").markdown(user_input)
     
+    # 呼叫 AI 生成回覆 (顯示載入中的動畫)
     with st.chat_message("assistant"):
-        with st.spinner("顧問法理分析中，請稍候..."):
-            try:
-                response = st.session_state.chat_session.send_message(user_input)
-                st.markdown(response.text)
-            except Exception as e:
-                st.error("⚠️ AI 分析過程發生連線錯誤。")
-                st.error(f"錯誤詳細資訊: {e}")
+        with st.spinner("顧問分析中，請稍候..."):
+            response = st.session_state.chat_session.send_message(user_input)
+            st.markdown(response.text)
