@@ -13,23 +13,23 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 自動偵測模型 (優先使用 Pro 模型)
+# 2. 自動偵測模型 (穩定免費版：優先使用 Flash 模型)
 # ==========================================
 try:
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
     if not available_models:
-        st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限，可能金鑰已失效。")
+        st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限。")
         st.stop()
 
-    # 預設先抓第一個，但優先尋找清單中的「Pro」高級模型
+    # 優先尋找清單中的「Flash」模型，避開 Pro 版本的嚴格額度限制
     selected_model = available_models[0]
     for m in available_models:
-        if "pro" in m.lower():  # 只要模型名稱裡有 pro (例如 gemini-1.5-pro 或 gemini-2.5-pro) 就優先使用
+        if "flash" in m.lower():  
             selected_model = m
             break
             
-    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前使用高級模型：\n`{selected_model}`")
+    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前使用穩定模型：\n`{selected_model}`")
 
 except Exception as e:
     if "403" in str(e) or "leaked" in str(e).lower():
