@@ -2,38 +2,44 @@ import streamlit as st
 import google.generativeai as genai
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 API 金鑰讀取 (安全讀取版)
 # ==========================================
 try:
-    GOOGLE_API_KEY = st.secrets["AIzaSyA5wbhSQwwwL5Wo1UjZ9knVwJ2vsmWYWUM"]
+    # 這裡只能寫 "GOOGLE_API_KEY" 這個標籤名稱，讓程式去雲端保險箱抓密碼
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
 except Exception as e:
-    st.error("⚠️ 尚未讀取到 API Key！請確認您已在 Streamlit Cloud 後台的 Secrets 填入 GOOGLE_API_KEY。")
+    st.error("⚠️ 尚未讀取到 API Key！請確認您已在 Streamlit Cloud 後台的 Settings > Secrets 中設定了 GOOGLE_API_KEY。")
     st.stop()
 
 # ==========================================
 # 2. 自動偵測模型 (終極防 404 機制)
 # ==========================================
-# 讓程式自動抓取您的金鑰真正支援的模型清單，避免 404 找不到名稱的錯誤
 try:
+    # 自動向 Google 詢問您的金鑰支援哪些模型
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
     if not available_models:
-        st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限。")
+        st.error("⚠️ 您的 API 金鑰目前沒有可用於文字生成的模型權限，可能金鑰已失效。")
         st.stop()
 
-    # 優先選擇最新的 flash 模型，若無則選清單內的第一個合法模型
+    # 優先選擇最新且穩定的 flash 模型
     selected_model = available_models[0]
     for m in available_models:
         if "1.5-flash" in m:
             selected_model = m
             break
             
-    # 在側邊欄顯示目前抓到的正確模型，方便確認連線狀態
-    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前自動選用模型：\n`{selected_model}`")
+    # 在側邊欄顯示狀態，若看到這行代表連線與套件都正常
+    st.sidebar.success(f"✅ AI 核心連線成功！\n\n目前使用模型：\n`{selected_model}`")
 
 except Exception as e:
-    st.error(f"⚠️ 讀取模型清單時發生錯誤：{e}")
+    # 若出現 403 錯誤，通常是因為金鑰被 Google 發現寫在公開網頁而封鎖了
+    if "403" in str(e) or "leaked" in str(e).lower():
+        st.error("🚨 嚴重錯誤：您的 API 金鑰已因外洩被 Google 封鎖！")
+        st.info("💡 解決步驟：\n1. 請至 Google AI Studio 申請一把全新的金鑰。\n2. 前往 Streamlit 後台 (Manage app > Settings > Secrets)。\n3. 將新金鑰填入 `GOOGLE_API_KEY = \"新金鑰\"` 並儲存。")
+    else:
+        st.error(f"⚠️ 讀取模型清單時發生連線錯誤：{e}")
     st.stop()
 
 # ==========================================
@@ -60,7 +66,7 @@ try:
         system_instruction=SYSTEM_PROMPT
     )
 except Exception as e:
-    st.error("⚠️ 模型建立失敗，這通常是 requirements.txt 套件版本未更新所致。")
+    st.error("⚠️ 模型建立失敗，這通常是 requirements.txt 內套件版本未設定正確所致。")
     st.stop()
 
 # ==========================================
@@ -82,7 +88,6 @@ if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
     st.chat_message("user").markdown(user_input)
     
     with st.chat_message("assistant"):
-        # 這裡的文字已更新，可用來確認網頁是否確實吃到新版程式碼
         with st.spinner("顧問法理分析中，請稍候..."):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
