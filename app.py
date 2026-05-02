@@ -20,8 +20,9 @@ SYSTEM_PROMPT = """
 """
 
 # 建立模型實例
+# 建立模型實例
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-pro",  # 改用這個更進階且穩定的名稱
+    model_name="gemini-1.5-flash", 
     system_instruction=SYSTEM_PROMPT
 )
 
