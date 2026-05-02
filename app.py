@@ -82,37 +82,46 @@ st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon
 # 👇👇👇 從這裡開始複製：網頁專業美化 CSS 區塊 👇👇👇
 st.markdown("""
 <style>
-    /* 1. 設定整體背景為「專業信任藍」的輕柔漸層 */
+    /* 1. 字體設定：優先使用微軟正黑體，確保官方視覺的一致性與易讀性 */
+    html, body, [class*="css"] {
+        font-family: '微軟正黑體', 'Noto Sans TC', sans-serif !important;
+    }
+
+    /* 2. 背景：極淡的水藍色漸層，乾淨且具備信任感 */
     .stApp {
-        background: linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%);
+        background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%);
     }
     
-    /* 2. 主標題顏色加深，並設定字體，顯得更穩重 */
+    /* 3. 主標題：沉穩的海軍藍，並設定標題置中與官方感底線 */
     h1 {
-        color: #102A43 !important;
-        font-weight: 700;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        color: #003366 !important;
+        font-weight: 800;
+        text-align: center;
+        padding-bottom: 15px;
+        border-bottom: 3px solid #00509E;
+        margin-bottom: 30px;
     }
-    
-    /* 3. 隱藏右上角預設的 Streamlit 選單與底部浮水印，讓畫面保持乾淨 */
+
+    /* 4. 隱藏預設選單與浮水印，保持版面純淨 */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 4. 讓對話框的底色稍微浮現，增加立體層次感 */
+    /* 5. 聊天訊息區塊：改為純白底色配上現代感圓角與極細邊框 */
     .stChatMessage {
-        background-color: rgba(255, 255, 255, 0.6);
-        border-radius: 10px;
+        background-color: #FFFFFF;
+        border: 1px solid #D1E1F0;
+        border-radius: 15px;
         padding: 15px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.03);
     }
 </style>
 """, unsafe_allow_html=True)
 # 👆👆👆 複製到這裡結束 👆👆👆
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況（例如：申請育嬰留停的遭遇、工時問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
+st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況（例如：性別平等工作法（申請育嬰留職停薪、職場性騷擾問題等）就業服務法（就業歧視、薪資揭示問題等）、勞動基準法（工時、工資問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
