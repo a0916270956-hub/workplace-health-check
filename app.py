@@ -77,8 +77,41 @@ except Exception as e:
 # ==========================================
 # 4. 網頁介面 (UI) 佈局與對話邏輯
 # ==========================================
-st.set_page_config(page_title="職場友善度 AI 健檢系統", page_icon="⚖️", layout="centered")
-st.title("⚖️ 職場友善度 AI 健檢系統")
+st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
+
+# 👇👇👇 從這裡開始複製：網頁專業美化 CSS 區塊 👇👇👇
+st.markdown("""
+<style>
+    /* 1. 設定整體背景為「專業信任藍」的輕柔漸層 */
+    .stApp {
+        background: linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%);
+    }
+    
+    /* 2. 主標題顏色加深，並設定字體，顯得更穩重 */
+    h1 {
+        color: #102A43 !important;
+        font-weight: 700;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    /* 3. 隱藏右上角預設的 Streamlit 選單與底部浮水印，讓畫面保持乾淨 */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* 4. 讓對話框的底色稍微浮現，增加立體層次感 */
+    .stChatMessage {
+        background-color: rgba(255, 255, 255, 0.6);
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+</style>
+""", unsafe_allow_html=True)
+# 👆👆👆 複製到這裡結束 👆👆👆
+
+st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況（例如：申請育嬰留停的遭遇、工時問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
