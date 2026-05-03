@@ -188,5 +188,5 @@ if "last_ai_reply" in st.session_state:
                         email=email,      
                         note=note         
                     )
-                    st.success(f"申請已送出！專人將儘速聯繫 {name} {title}。")
+                    st.success(f"{name} {title} 好你的申請已送出！專人將儘速與你聯繫。")
                     st.session_state.show_expert_form = False
