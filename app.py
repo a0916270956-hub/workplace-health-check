@@ -16,6 +16,7 @@ except Exception as e:
     st.stop()
 
 # 直接指定模型，減少偵測請求消耗[cite: 1]
+# 🎯 修正：統一使用大寫變數名稱
 SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
@@ -43,7 +44,7 @@ SYSTEM_PROMPT = """
 請根據使用者描述的職場狀況，進行客觀分析與評估。
 
 【最新修法與函釋重點】(請務必依此最新標準評估)
-1. 2026年最新規定：若雇主拒絕提供育嬰留職停薪，裁罰基準已調整。
+1. 2026年最新規定：若雇主拒絕提供育嬰留職停薪，裁罰基準已調高並強化執行。
 2. 針對性別歧視之認定，應參考勞動部最新函釋標準。
 3. 雇主若未依法設置哺集乳室，可依《性別平等工作法》開罰。
 
@@ -58,12 +59,13 @@ SYSTEM_PROMPT = """
 """
 
 try:
+    # 🎯 修正：將變數名稱改為 SELECTED_MODEL[cite: 1]
     model = genai.GenerativeModel(
-        model_name=selected_model,
+        model_name=SELECTED_MODEL,
         system_instruction=SYSTEM_PROMPT
     )
 except Exception as e:
-    st.error("⚠️ 模型建立失敗。")
+    st.error(f"⚠️ 模型建立失敗：{e}")
     st.stop()
 
 # ==========================================
@@ -137,7 +139,7 @@ if "last_ai_reply" in st.session_state:
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
             
-            # 🎯 順序調整：姓名在前，性別在後[cite: 2]
+            # 🎯 順序：姓名在前，性別在後[cite: 2]
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             
@@ -147,9 +149,9 @@ if "last_ai_reply" in st.session_state:
             
             if st.form_submit_button("送出申請"):
                 if not name or not (phone or email):
-                    st.error("請填寫姓名與至少一種聯繫方式（電話或 Email）。")
+                    st.error("請提供姓名與至少一種聯繫方式（電話或 Email）。")
                 else:
-                    # 🎯 稱謂優化邏輯
+                    # 🎯 稱謂優化邏輯[cite: 2]
                     title = ""
                     if user_gender == "男":
                         title = "先生"
@@ -161,11 +163,11 @@ if "last_ai_reply" in st.session_state:
                         st.session_state.last_ai_reply, 
                         feedback="需專人服務", 
                         status="待處理",
-                        name=name,        # 傳送姓名[cite: 2]
-                        gender=user_gender, # 傳送性別[cite: 2]
-                        phone=phone, 
-                        email=email, 
-                        note=note
+                        name=name,        # F 欄[cite: 2]
+                        gender=user_gender, # G 欄[cite: 2]
+                        phone=phone,      # H 欄[cite: 2]
+                        email=email,      # I 欄[cite: 2]
+                        note=note         # J 欄[cite: 2]
                     )
                     st.success(f"申請已送出！專人將儘速聯繫 {name} {title}。")
                     st.session_state.show_expert_form = False
