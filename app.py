@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 API 金鑰讀取[cite: 1]
 # ==========================================
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -15,29 +15,28 @@ except Exception as e:
     st.error("⚠️ 尚未讀取到 API Key！請至 Streamlit Secrets 設定。")
     st.stop()
 
-# 🎯 修正：使用更穩定的模型識別碼
+# 直接指定穩定版模型名稱，避免路徑錯誤[cite: 1]
 SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
-# 2. 完美版寫入函數 (對應 A-J 欄位)
+# 2. 完美版寫入函數 (對應 A-J 欄位順序)[cite: 1, 2]
 # ==========================================
 def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
     try:
         creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
         gc = gspread.service_account_from_dict(creds_dict)
-        # 務必確認您的 Google 試算表名稱正確
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
         
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        # 依照標題列順序寫入資料：時間(A), 提問(B), 回覆(C), 評價(D), 狀態(E), 姓名(F), 性別(G), 電話(H), Email(I), 備註(J)
+        # 寫入順序：時間, 提問, 回覆, 評價, 狀態, 姓名(F), 性別(G), 電話(H), Email(I), 備註(J)[cite: 2]
         sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
         print(f"資料庫紀錄異常：{e}")
 
 # ==========================================
-# 3. 核心大腦設定 (提示詞優化)
+# 3. 核心大腦設定 (精確導入您的 SYSTEM_PROMPT)[cite: 1]
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
@@ -68,7 +67,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. 網頁介面與 UI 美化
+# 4. 網頁介面佈局與美化[cite: 1]
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -82,18 +81,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
+
+# 精確導入您的介面說明文字[cite: 1]
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況。例如：性別平等工作法（申請育嬰留職停薪、性別歧視及職場性騷擾問題等）就業服務法（就業歧視、薪資揭示問題等）、勞動基準法（工時、工資問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
 
-# 渲染對話
+# 渲染對話歷史[cite: 1]
 for message in st.session_state.chat_session.history:
     role = "user" if message.role == "user" else "assistant"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# 民眾輸入區
+# 民眾輸入區[cite: 1]
 if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
@@ -102,23 +103,21 @@ if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
                 
-                # 暫存以便反饋使用
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 自動紀錄提問
+                # 自動紀錄初始提問[cite: 1]
                 log_to_sheets_perfect(user_input, response.text)
                 
             except Exception as e:
-                # 處理 429 頻率限制
                 if "429" in str(e):
                     st.error("🌟 系統目前繁忙中（配額已達上限）。")
-                    st.info("如您有急迫需求，歡迎直接致電基隆市政府專線：02-24287801。")
+                    st.info("如您有急迫需求，歡迎致電基隆市政府諮詢專線：02-24287801。")
                 else:
                     st.error(f"⚠️ AI 分析發生錯誤：{e}")
 
 # ==========================================
-# 5. 反饋互動與專人補充表單 (位置交換版)
+# 5. 反饋互動與專人補充表單 (位置交換優化版)[cite: 2]
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -136,36 +135,29 @@ if "last_ai_reply" in st.session_state:
 
     if st.session_state.get("show_form", False):
         with st.form("contact_form"):
-            st.info("請填寫聯繫資訊，專人將於上班時間聯繫您。")
+            st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
             
-            # 🎯 修正：姓名在前，性別三選一在後
+            # 🎯 姓名在前，性別三選一在後[cite: 2]
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
-            note = st.text_area("補充說明")
+            note = st.text_area("其他備註說明")
             
             if st.form_submit_button("送出申請"):
                 if not name or not (phone or email):
-                    st.error("請填寫姓名與至少一項聯絡方式。")
+                    st.error("請提供姓名與至少一種聯繫方式（電話或 Email）。")
                 else:
-                    # 稱謂判斷邏輯
-                    title = ""
-                    if user_gender == "男": title = "先生"
-                    elif user_gender == "女": title = "女士（小姐）"
+                    # 稱謂自動優化[cite: 2]
+                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     
-                    # 寫入包含個資的詳細紀錄 (F欄姓名, G欄性別)
                     log_to_sheets_perfect(
                         st.session_state.last_user_msg, 
                         st.session_state.last_ai_reply, 
                         feedback="需專人服務", 
                         status="待處理",
-                        name=name,
-                        gender=user_gender,
-                        phone=phone,
-                        email=email,
-                        note=note
+                        name=name, gender=user_gender, phone=phone, email=email, note=note
                     )
-                    st.success(f"申請已送出！人員將儘速聯繫 {name} {title}。")
+                    st.success(f"申請已送出！專人將儘速聯繫 {name} {title}。")
                     st.session_state.show_form = False
