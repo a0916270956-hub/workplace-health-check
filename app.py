@@ -16,15 +16,28 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 修正：動態抓取正確的模型名稱，避免 404 錯誤
+# 2. 🎯 終極修正：安全動態模型選擇 (自動降級機制)
 # ==========================================
 try:
+    # 取得您這把 API Key 真正能看見的所有可用模型
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    # 尋找包含 1.5-flash 的模型，並去掉 'models/' 前綴 (GenerativeModel 會自動加上)
-    SELECTED_MODEL = next((m.replace("models/", "") for m in available_models if "gemini-1.5-flash" in m.lower()), "gemini-1.5-flash-latest")
+    
+    # 依序尋找可用的模型：1.5-flash -> 1.5-pro -> 1.0-pro -> gemini-pro
+    if 'models/gemini-1.5-flash' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-flash'
+    elif 'models/gemini-1.5-pro' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-pro'
+    elif 'models/gemini-1.0-pro' in available_models:
+        SELECTED_MODEL = 'gemini-1.0-pro'
+    elif 'models/gemini-pro' in available_models:
+        SELECTED_MODEL = 'gemini-pro'
+    else:
+        # 如果都沒有，就硬抓第一個能用的
+        SELECTED_MODEL = available_models[0].replace("models/", "")
+        
 except Exception as e:
-    # 若抓取失敗，使用最安全的預設值
-    SELECTED_MODEL = "gemini-1.5-flash-latest"
+    # 最壞情況下的絕對保底模型
+    SELECTED_MODEL = "gemini-pro"
 
 # ==========================================
 # 3. 完美版寫入函數：支援姓名與性別交換位置
@@ -105,7 +118,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner("顧問分析中..."):
+        with st.spinner(f"顧問分析中... (目前使用模型: {SELECTED_MODEL})"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -125,7 +138,7 @@ if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
                     st.error(f"⚠️ 連線錯誤：{e}")
 
 # ==========================================
-# 6. 反饋互動與專人補充表單 (用語優化版)
+# 6. 反饋互動與專人補充表單
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -145,7 +158,7 @@ if "last_ai_reply" in st.session_state:
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
             
-            # 🎯 順序：姓名在前，性別在後
+            # 順序：姓名在前，性別在後
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             
@@ -157,7 +170,7 @@ if "last_ai_reply" in st.session_state:
                 if not name or not (phone or email):
                     st.error("請提供姓名與至少一種聯繫方式（電話或 Email）。")
                 else:
-                    # 🎯 稱謂優化邏輯
+                    # 稱謂優化邏輯
                     title = ""
                     if user_gender == "男":
                         title = "先生"
