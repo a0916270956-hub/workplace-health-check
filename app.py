@@ -75,7 +75,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.info("歡迎使用！請描述您的職場狀況，顧問將根據台灣法規為您進行分析。")
+st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況。例如：性別平等工作法（申請育嬰留職停薪、性別歧視及職場性騷擾問題等）就業服務法（就業歧視、薪資揭示問題等）、勞動基準法（工時、工資問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
