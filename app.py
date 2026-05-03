@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 API 金鑰讀取[cite: 1, 2]
 # ==========================================
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -15,20 +15,13 @@ except Exception as e:
     st.error("⚠️ 尚未讀取到 API Key！請至 Streamlit Secrets 設定 GOOGLE_API_KEY。")
     st.stop()
 
-# ==========================================
-# 2. 模型偵測：優先使用 1.5-Flash 以換取最高免費額度
-# ==========================================
-try:
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    selected_model = next((m for m in available_models if "gemini-1.5-flash" in m.lower()), available_models[0])
-except Exception as e:
-    st.error(f"⚠️ 模型讀取錯誤：{e}")
-    st.stop()
+# 直接指定模型，減少偵測請求消耗[cite: 1]
+SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
-# 3. 完美版寫入函數：支援反饋與專人聯繫資訊
+# 2. 完美版寫入函數：支援姓名與性別交換位置[cite: 2]
 # ==========================================
-def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", phone="", email="", note=""):
+def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
     try:
         creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
         gc = gspread.service_account_from_dict(creds_dict)
@@ -37,30 +30,44 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        # 依照標題列順序寫入資料
-        sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, phone, email, note])
+        # 依照標題列順序寫入資料：姓名(F)、性別(G)[cite: 2]
+        sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
-        print(f"資料庫紀錄異常（不影響前端）：{e}")
+        print(f"資料庫紀錄異常：{e}")
 
 # ==========================================
-# 4. 專業法律大腦提示詞
+# 3. 核心大腦設定[cite: 1, 2]
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
 請根據使用者描述的職場狀況，進行客觀分析與評估。
 
+【最新修法與函釋重點】(請務必依此最新標準評估)
+1. 2026年最新規定：若雇主拒絕提供育嬰留職停薪，裁罰基準已調整。
+2. 針對性別歧視之認定，應參考勞動部最新函釋標準。
+3. 雇主若未依法設置哺集乳室，可依《性別平等工作法》開罰。
+
 【核心守則】
-1. 展現同理心：首先承接使用者的情緒。
-2. 嚴格區分歧視：
-   - 涉及性別、懷孕、育嬰留停者，歸類為《性別平等工作法》之「性別歧視」。
-   - 涉及年齡、身心障礙者，歸類為《就業服務法》之「就業歧視」。
-3. 官方結語：在每一則回答最後一行，固定加上「如仍有疑義歡迎來電02-24287801 基隆市政府關心你」。
+1. 展現同理心：首先承接使用者的情緒，給予溫暖與支持的回應。
+2. 嚴格區分歧視類型：
+   - 若涉及懷孕、育嬰留停、性別、性傾向等不利對待，請歸類為違反《性別平等工作法》的「性別歧視」。
+   - 若涉及年齡、容貌、身心障礙等因素，請歸類為違反《就業服務法》的「就業歧視」。
+3. 勞動條件檢核：涉及工時、工資問題請引用《勞動基準法》。
+4. 輸出健檢報告：給予 1-100 分綜合評分，並提供具體蒐證建議與申訴管道。
+5. 官方結語提醒：在每一次回答的最後一行，固定加上這句話：「如仍有疑義歡迎來電02-24287801 基隆市政府關心你」。
 """
 
-model = genai.GenerativeModel(model_name=selected_model, system_instruction=SYSTEM_PROMPT)
+try:
+    model = genai.GenerativeModel(
+        model_name=selected_model,
+        system_instruction=SYSTEM_PROMPT
+    )
+except Exception as e:
+    st.error("⚠️ 模型建立失敗。")
+    st.stop()
 
 # ==========================================
-# 5. UI 美化與互動邏輯
+# 4. 網頁介面佈局[cite: 1, 2]
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -110,7 +117,7 @@ if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
                     st.error(f"⚠️ 連線錯誤：{e}")
 
 # ==========================================
-# 6. 反饋與專人補充互動表單
+# 5. 反饋互動與專人補充表單 (用語優化版)[cite: 2]
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -120,30 +127,45 @@ if "last_ai_reply" in st.session_state:
     with col1:
         if st.button("👍 很有幫助"):
             log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="滿意", status="結案")
-            st.success("感謝回饋！")
+            st.success("感謝您的回饋！")
             
     with col2:
-        if st.button("❓ 仍有疑惑/需專人回覆"):
+        if st.button("❓ 需專人補充回復"):
             st.session_state.show_expert_form = True
 
     if st.session_state.get("show_expert_form", False):
         with st.form("pro_contact"):
-            st.warning("請填寫聯繫資訊，人員將於上班時間回覆您。")
-            name = st.text_input("稱呼")
+            st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
+            
+            # 🎯 順序調整：姓名在前，性別在後[cite: 2]
+            name = st.text_input("您的姓名/稱呼")
+            user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
+            
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
-            note = st.text_area("其他備註")
+            note = st.text_area("其他備註說明")
             
             if st.form_submit_button("送出申請"):
                 if not name or not (phone or email):
-                    st.error("請填寫姓名與至少一種聯繫方式。")
+                    st.error("請填寫姓名與至少一種聯繫方式（電話或 Email）。")
                 else:
+                    # 🎯 稱謂優化邏輯
+                    title = ""
+                    if user_gender == "男":
+                        title = "先生"
+                    elif user_gender == "女":
+                        title = "女士（小姐）"
+                    
                     log_to_sheets_perfect(
                         st.session_state.last_user_msg, 
                         st.session_state.last_ai_reply, 
                         feedback="需專人服務", 
                         status="待處理",
-                        name=name, phone=phone, email=email, note=note
+                        name=name,        # 傳送姓名[cite: 2]
+                        gender=user_gender, # 傳送性別[cite: 2]
+                        phone=phone, 
+                        email=email, 
+                        note=note
                     )
-                    st.success("申請已送出，專人將儘速聯繫您。")
+                    st.success(f"申請已送出！專人將儘速聯繫 {name} {title}。")
                     st.session_state.show_expert_form = False
