@@ -183,7 +183,7 @@ for message in st.session_state.chat_session.history:
         st.markdown(message.parts[0].text)
 
 # 民眾輸入區
-if user_input := st.chat_input("請輸入您的職場狀況或疑問..."):
+if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
         with st.spinner(f"顧問分析中... (目前使用模型: {SELECTED_MODEL})"):
@@ -222,20 +222,24 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 需專人補充回復"):
             st.session_state.show_expert_form = True
 
-    if st.session_state.get("show_expert_form", False):
+if st.session_state.get("show_expert_form", False):
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
             
-            # 順序：姓名在前，性別在後
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
-            
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
             note = st.text_area("其他備註說明")
             
+            # 🎯 新增：個資保護同意勾選框
+            st.markdown("---")
+            consent = st.checkbox("我同意基隆市政府依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
+            
             if st.form_submit_button("送出申請"):
-                if not name or not (phone or email):
+                if not consent:
+                    st.error("⚠️ 請勾選同意個資聲明，我們才能派專人為您服務喔！")
+                elif not name or not (phone or email):
                     st.error("請提供姓名與至少一種聯繫方式（電話或 Email）。")
                 else:
                     # 稱謂優化邏輯
