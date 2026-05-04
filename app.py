@@ -67,9 +67,14 @@ def send_line_message(message_text):
             "to": admin_user_id,
             "messages": [{"type": "text", "text": message_text}]
         }
-        requests.post(url, headers=headers, json=data)
+        res = requests.post(url, headers=headers, json=data)
+        
+        # 🎯 如果發送失敗，將錯誤碼顯示在後台 Console
+        if res.status_code != 200:
+            print(f"LINE 發送失敗，狀態碼：{res.status_code}, 原因：{res.text}")
+            
     except Exception as e:
-        print(f"LINE 通知發送失敗：{e}")
+        print(f"LINE 系統異常：{e}")
 
 # ==========================================
 # 4. 核心大腦設定 (專家模式 Prompt)
