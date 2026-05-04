@@ -82,7 +82,8 @@ try:
     model = genai.GenerativeModel(
         model_name=SELECTED_MODEL,
         system_instruction=SYSTEM_PROMPT,
-        tools="google_search"  # 🎯 關鍵修正：將名稱改為最新的 google_search
+        # 🎯 關鍵修正：將字串改為「字典格式列表」，完美避開底層套件的字串檢查錯誤
+        tools=[{"google_search": {}}] 
     )
 except Exception as e:
     st.error(f"⚠️ 模型建立失敗：{e}")
