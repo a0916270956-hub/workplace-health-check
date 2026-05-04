@@ -92,10 +92,9 @@ except Exception as e:
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
-# 🎯 修正：加入強制深色文字的設定，避免深色模式下文字反白消失
 st.markdown("""
 <style>
-    /* 強制全局字體，並鎖定文字為深灰色 */
+    /* 強制全局字體，並鎖定主要文字為深灰色 */
     html, body, [class*="st-"] { 
         font-family: '微軟正黑體', sans-serif !important; 
         color: #262730 !important; 
@@ -123,9 +122,26 @@ st.markdown("""
         color: #262730 !important; 
     }
     
-    /* 確保所有段落文字都能清晰顯示 */
+    /* 確保所有一般段落文字都能清晰顯示 */
     p, .stMarkdown p {
         color: #262730 !important;
+    }
+
+    /* 🎯 關鍵修正：強制輸入區（包含聊天輸入框與表單輸入框）為白底黑字 */
+    div[data-testid="stChatInput"], 
+    div[data-testid="stChatInput"] textarea, 
+    div[data-baseweb="input"] > div, 
+    div[data-baseweb="textarea"] > div, 
+    input, textarea {
+        background-color: #FFFFFF !important;
+        color: #262730 !important;
+        -webkit-text-fill-color: #262730 !important; /* 強制覆蓋手機/瀏覽器的原生字體顏色 */
+    }
+
+    /* 提示文字 (Placeholder) 設定為淺灰色，以免太突兀 */
+    ::placeholder {
+        color: #A0A0A0 !important;
+        -webkit-text-fill-color: #A0A0A0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
