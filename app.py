@@ -127,7 +127,7 @@ st.markdown("""
         color: #262730 !important;
     }
 
-    /* 🎯 關鍵修正：強制輸入區（包含聊天輸入框與表單輸入框）為白底黑字 */
+    /* 強制輸入區（包含聊天輸入框與表單輸入框）為白底黑字 */
     div[data-testid="stChatInput"], 
     div[data-testid="stChatInput"] textarea, 
     div[data-baseweb="input"] > div, 
@@ -135,13 +135,36 @@ st.markdown("""
     input, textarea {
         background-color: #FFFFFF !important;
         color: #262730 !important;
-        -webkit-text-fill-color: #262730 !important; /* 強制覆蓋手機/瀏覽器的原生字體顏色 */
+        -webkit-text-fill-color: #262730 !important; 
     }
 
-    /* 提示文字 (Placeholder) 設定為淺灰色，以免太突兀 */
+    /* 提示文字 (Placeholder) 設定為淺灰色 */
     ::placeholder {
         color: #A0A0A0 !important;
         -webkit-text-fill-color: #A0A0A0 !important;
+    }
+
+    /* 🎯 關鍵修正：強制按鈕樣式為「白底藍字藍框」，解決黑底反白問題 */
+    div[data-testid="stButton"] button, 
+    div[data-testid="stFormSubmitButton"] button {
+        background-color: #FFFFFF !important;
+        color: #00509E !important;
+        border: 1px solid #00509E !important;
+        font-weight: bold !important;
+    }
+
+    /* 按鈕滑鼠懸停效果：變成「藍底白字」 */
+    div[data-testid="stButton"] button:hover, 
+    div[data-testid="stFormSubmitButton"] button:hover {
+        background-color: #00509E !important;
+        color: #FFFFFF !important;
+        border: 1px solid #00509E !important;
+    }
+
+    /* 確保按鈕內的文字顏色跟隨上方設定，不被全局顏色吃掉 */
+    div[data-testid="stButton"] button p, 
+    div[data-testid="stFormSubmitButton"] button p {
+        color: inherit !important;
     }
 </style>
 """, unsafe_allow_html=True)
