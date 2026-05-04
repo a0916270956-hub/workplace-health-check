@@ -69,12 +69,15 @@ def send_line_message(message_text):
         }
         res = requests.post(url, headers=headers, json=data)
         
-        # 🎯 如果發送失敗，將錯誤碼顯示在後台 Console
+        # 🎯 診斷機制：如果發送不成功，直接顯示錯誤原因
         if res.status_code != 200:
-            print(f"LINE 發送失敗，狀態碼：{res.status_code}, 原因：{res.text}")
+            st.warning(f"⚠️ LINE 通知失敗 (代碼 {res.status_code})。錯誤內容：{res.text}")
+            print(f"LINE 錯誤詳情：{res.text}")
+        else:
+            print("LINE 通知發送成功！")
             
     except Exception as e:
-        print(f"LINE 系統異常：{e}")
+        st.error(f"❌ LINE 系統呼叫異常：{e}")
 
 # ==========================================
 # 4. 核心大腦設定 (專家模式 Prompt)
