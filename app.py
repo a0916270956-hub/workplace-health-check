@@ -17,18 +17,24 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 安全動態模型選擇 (自動降級機制)
+# 2. 安全動態模型選擇 (更新優化版)
 # ==========================================
 try:
+    # 取得可用模型清單
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    if 'models/gemini-1.5-flash' in available_models:
+    
+    # 優先選擇 1.5 系列，因為它們目前是 Google 的主流支援版本
+    if any('gemini-1.5-flash' in m for m in available_models):
         SELECTED_MODEL = 'gemini-1.5-flash'
-    elif 'models/gemini-1.5-pro' in available_models:
+    elif any('gemini-1.5-pro' in m for m in available_models):
         SELECTED_MODEL = 'gemini-1.5-pro'
     else:
-        SELECTED_MODEL = "gemini-pro"
+        # 如果找不到 1.5 系列，則抓取清單中第一個可用的模型名稱
+        SELECTED_MODEL = available_models[0].split('/')[-1]
+        
 except Exception as e:
-    SELECTED_MODEL = "gemini-pro"
+    # 若 API 無法列出模型，則使用目前最通用的名稱作為保底
+    SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets)
