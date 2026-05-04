@@ -92,13 +92,41 @@ except Exception as e:
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
-# 介面美化
+# 🎯 修正：加入強制深色文字的設定，避免深色模式下文字反白消失
 st.markdown("""
 <style>
-    html, body, [class*="css"] { font-family: '微軟正黑體', sans-serif !important; }
-    .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%); }
-    h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
-    .stChatMessage { background-color: #FFFFFF; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); }
+    /* 強制全局字體，並鎖定文字為深灰色 */
+    html, body, [class*="st-"] { 
+        font-family: '微軟正黑體', sans-serif !important; 
+        color: #262730 !important; 
+    }
+    
+    /* 漸層背景設定 */
+    .stApp { 
+        background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; 
+    }
+    
+    /* 主標題設定 */
+    h1 { 
+        color: #003366 !important; 
+        text-align: center; 
+        border-bottom: 3px solid #00509E; 
+        padding-bottom: 10px; 
+    }
+    
+    /* 聊天氣泡設定：白底黑字 */
+    .stChatMessage { 
+        background-color: #FFFFFF !important; 
+        border-radius: 15px; 
+        border: 1px solid #D1E1F0; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
+        color: #262730 !important; 
+    }
+    
+    /* 確保所有段落文字都能清晰顯示 */
+    p, .stMarkdown p {
+        color: #262730 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
