@@ -129,7 +129,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，根據台灣法規，為您進行環境友善度評估與法理分析。")
+st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
@@ -195,12 +195,11 @@ if "last_ai_reply" in st.session_state:
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             
-            # 新增 LINE 回覆選項
-            contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆", "LINE 回覆"], horizontal=True)
+            # 🎯 修正：移除 LINE 回覆，僅保留電話與 Email
+            contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
-            line_id = st.text_input("您的 LINE ID (若選 LINE 回覆請務必填寫)")
             note = st.text_area("其他備註說明")
             
             st.markdown("---")
@@ -215,15 +214,10 @@ if "last_ai_reply" in st.session_state:
                     st.error("⚠️ 您選擇了「電話回覆」，請務必填寫聯絡電話。")
                 elif contact_method == "Email 回覆" and not email:
                     st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
-                elif contact_method == "LINE 回覆" and not line_id:
-                    st.error("⚠️ 您選擇了「LINE 回覆」，請務必填寫您的 LINE ID。")
                 else:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     
-                    # 將 LINE ID 整併進備註欄位中
                     final_note = f"【希望以 {contact_method}】\n"
-                    if contact_method == "LINE 回覆":
-                        final_note += f"LINE ID: {line_id}\n"
                     if note:
                         final_note += f"備註: {note}"
                     
@@ -243,7 +237,6 @@ if "last_ai_reply" in st.session_state:
                     notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n"
                     if contact_method == "電話回覆": notify_msg += f"電話：{phone}\n"
                     elif contact_method == "Email 回覆": notify_msg += f"Email：{email}\n"
-                    elif contact_method == "LINE 回覆": notify_msg += f"LINE ID：{line_id}\n"
                     notify_msg += f"備註：{note}\n請勞資關係科同仁盡速至試算表查看。"
                     
                     send_line_message(notify_msg)
