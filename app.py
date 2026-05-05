@@ -131,6 +131,19 @@ st.markdown("""
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
+# --- 新增：側邊欄清除記憶按鈕 ---
+with st.sidebar:
+    st.markdown("### 系統控制台")
+    if st.button("🔄 清除對話記憶 (重新健檢)"):
+        # 重新初始化對話，清空歷史紀錄
+        st.session_state.chat_session = model.start_chat(history=[])
+        if "last_ai_reply" in st.session_state:
+            del st.session_state["last_ai_reply"]
+        st.success("記憶已清除！已釋放系統額度，請重新提問。")
+        st.rerun() # 重新載入網頁
+    st.info("💡 提示：若系統提示「繁忙/達到上限」，請點擊上方按鈕清除記憶即可恢復正常。")
+# --------------------------------
+
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
 
