@@ -4,6 +4,7 @@ import gspread
 import json
 from datetime import datetime
 import pytz
+import requests
 
 # ==========================================
 # 1. 系統設定與 API 金鑰讀取
@@ -16,27 +17,13 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 安全動態模型選擇 (自動降級機制)
+# 2. 🎯 強制鎖定極速模型 (解決 429 配額問題)
 # ==========================================
-try:
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    if 'models/gemini-1.5-flash' in available_models:
-        SELECTED_MODEL = 'gemini-1.5-flash'
-    elif 'models/gemini-1.5-pro' in available_models:
-        SELECTED_MODEL = 'gemini-1.5-pro'
-    elif 'models/gemini-1.0-pro' in available_models:
-        SELECTED_MODEL = 'gemini-1.0-pro'
-    elif 'models/gemini-pro' in available_models:
-        SELECTED_MODEL = 'gemini-pro'
-    else:
-        SELECTED_MODEL = available_models[0].replace("models/", "")
-        
-except Exception as e:
-    SELECTED_MODEL = "gemini-pro"
+# 直接指定使用配額最寬鬆、反應最快的 Flash 模型
+SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
-# 3. 完美版寫入函數
+# 3. 完美版寫入函數 (Google Sheets)
 # ==========================================
 def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
     try:
@@ -47,13 +34,38 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
         
-        # 寫入順序對應：A(時間), B(提問), C(回覆), D(評價), E(狀態), F(姓名), G(性別), H(電話), I(Email), J(備註)
+        # 寫入順序：A(時間), B(提問), C(回覆), D(評價), E(狀態), F(姓名), G(性別), H(電話), I(Email), J(備註)
         sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
         print(f"資料庫紀錄異常：{e}")
 
 # ==========================================
-# 4. 核心大腦設定 (🎯 依照最新要求調整 Prompt)
+# 3.1 LINE Messaging API 強化通知功能
+# ==========================================
+def send_line_message(message_text):
+    try:
+        channel_access_token = st.secrets["LINE_CHANNEL_ACCESS_TOKEN"]
+        admin_user_id = st.secrets["LINE_ADMIN_USER_ID"]
+        url = "https://api.line.me/v2/bot/message/push"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {channel_access_token}"
+        }
+        data = {
+            "to": admin_user_id,
+            "messages": [{"type": "text", "text": message_text}]
+        }
+        res = requests.post(url, headers=headers, json=data)
+        
+        if res.status_code != 200:
+            st.warning(f"⚠️ LINE 通知無法送達，錯誤代碼：{res.status_code}。請檢查金鑰或權限設定。")
+            print(f"LINE 發送失敗：{res.text}")
+            
+    except Exception as e:
+        print(f"LINE 系統異常：{e}")
+
+# ==========================================
+# 4. 核心大腦設定 (精準法規專家模式)
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
@@ -90,67 +102,16 @@ st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon
 
 st.markdown("""
 <style>
-    /* 強制全局字體，並鎖定主要文字為深灰色 */
-    html, body, [class*="st-"] { 
-        font-family: '微軟正黑體', sans-serif !important; 
-        color: #262730 !important; 
-    }
-    
+    /* 強制全局字體與顏色 */
+    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
-    
-    h1 { 
-        color: #003366 !important; 
-        text-align: center; 
-        border-bottom: 3px solid #00509E; 
-        padding-bottom: 10px; 
-    }
-    
-    .stChatMessage { 
-        background-color: #FFFFFF !important; 
-        border-radius: 15px; 
-        border: 1px solid #D1E1F0; 
-        box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
-        color: #262730 !important; 
-    }
-    
+    h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
+    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
     p, .stMarkdown p { color: #262730 !important; }
-
-    /* 強制輸入區為白底黑字 */
-    div[data-testid="stChatInput"], 
-    div[data-testid="stChatInput"] textarea, 
-    div[data-baseweb="input"] > div, 
-    div[data-baseweb="textarea"] > div, 
-    input, textarea {
-        background-color: #FFFFFF !important;
-        color: #262730 !important;
-        -webkit-text-fill-color: #262730 !important; 
-    }
-
-    ::placeholder {
-        color: #A0A0A0 !important;
-        -webkit-text-fill-color: #A0A0A0 !important;
-    }
-
-    /* 按鈕樣式白底藍字藍框 */
-    div[data-testid="stButton"] button, 
-    div[data-testid="stFormSubmitButton"] button {
-        background-color: #FFFFFF !important;
-        color: #00509E !important;
-        border: 1px solid #00509E !important;
-        font-weight: bold !important;
-    }
-
-    div[data-testid="stButton"] button:hover, 
-    div[data-testid="stFormSubmitButton"] button:hover {
-        background-color: #00509E !important;
-        color: #FFFFFF !important;
-        border: 1px solid #00509E !important;
-    }
-
-    div[data-testid="stButton"] button p, 
-    div[data-testid="stFormSubmitButton"] button p {
-        color: inherit !important;
-    }
+    div[data-testid="stChatInput"] textarea, input, textarea { background-color: #FFFFFF !important; color: #262730 !important; -webkit-text-fill-color: #262730 !important; }
+    ::placeholder { color: #A0A0A0 !important; -webkit-text-fill-color: #A0A0A0 !important; }
+    div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button { background-color: #FFFFFF !important; color: #00509E !important; border: 1px solid #00509E !important; font-weight: bold !important; }
+    div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover { background-color: #00509E !important; color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -180,7 +141,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 
             except Exception as e:
                 if "429" in str(e):
-                    st.error("🌟 系統目前繁忙中（配額已達上限）。")
+                    st.error("🌟 系統目前繁忙中（配額暫時已達上限，請稍候片刻再試）。")
                     st.info("如您有急迫法律需求，歡迎致電基隆市政府諮詢專線：02-24287801。")
                 else:
                     st.error(f"⚠️ 連線錯誤：{e}")
@@ -208,7 +169,6 @@ if "last_ai_reply" in st.session_state:
             
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
-            
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
@@ -228,9 +188,7 @@ if "last_ai_reply" in st.session_state:
                 elif contact_method == "Email 回覆" and not email:
                     st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
                 else:
-                    title = ""
-                    if user_gender == "男": title = "先生"
-                    elif user_gender == "女": title = "女士（小姐）"
+                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     
                     final_note = f"【希望以 {contact_method}】\n{note}" if note else f"【希望以 {contact_method}】"
                     
@@ -245,6 +203,10 @@ if "last_ai_reply" in st.session_state:
                         email=email,      
                         note=final_note   
                     )
+                    
+                    # 傳送 LINE 即時推播通知
+                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n電話：{phone}\nEmail：{email}\n備註：{note}\n請盡速至試算表查看詳情。"
+                    send_line_message(notify_msg)
                     
                     st.success(f"{name} {title} 好，你的申請已送出！專人將儘速與你聯繫。")
                     st.session_state.show_expert_form = False
