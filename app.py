@@ -17,10 +17,27 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 強制鎖定極速模型 (解決 429 配額問題)
+# 2. 🎯 安全動態模型選擇 (解決 404 找不到模型)
 # ==========================================
-# 直接指定使用配額最寬鬆、反應最快的 Flash 模型
-SELECTED_MODEL = "gemini-1.5-flash"
+try:
+    # 動態抓取您的 API Key 真正支援的模型清單
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    # 依序尋找配額最寬鬆、反應最快的版本 (加入 latest 備案)
+    if 'models/gemini-1.5-flash-latest' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-flash-latest'
+    elif 'models/gemini-1.5-flash' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-flash'
+    elif 'models/gemini-1.5-pro' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-pro'
+    elif 'models/gemini-pro' in available_models:
+        SELECTED_MODEL = 'gemini-pro'
+    else:
+        # 如果都沒有，抓取清單中第一個可用的
+        SELECTED_MODEL = available_models[0].replace("models/", "")
+        
+except Exception as e:
+    SELECTED_MODEL = "gemini-1.5-pro" # 最終保底
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets)
