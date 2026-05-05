@@ -20,10 +20,8 @@ except Exception as e:
 # 2. 🎯 安全動態模型選擇 (解決 404 找不到模型)
 # ==========================================
 try:
-    # 動態抓取您的 API Key 真正支援的模型清單
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
-    # 依序尋找配額最寬鬆、反應最快的版本 (加入 latest 備案)
     if 'models/gemini-1.5-flash-latest' in available_models:
         SELECTED_MODEL = 'gemini-1.5-flash-latest'
     elif 'models/gemini-1.5-flash' in available_models:
@@ -33,11 +31,10 @@ try:
     elif 'models/gemini-pro' in available_models:
         SELECTED_MODEL = 'gemini-pro'
     else:
-        # 如果都沒有，抓取清單中第一個可用的
         SELECTED_MODEL = available_models[0].replace("models/", "")
         
 except Exception as e:
-    SELECTED_MODEL = "gemini-1.5-pro" # 最終保底
+    SELECTED_MODEL = "gemini-1.5-pro"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets)
@@ -91,7 +88,7 @@ SYSTEM_PROMPT = """
 【🚨 回覆結構與專業查證原則】
 1. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
 2. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
-   - 在【法令分析】中，請針對問題說明法令依據及條文。**無關之法規切勿贅述**，僅援引最核心相關的條文。
+   - 在【法令分析】中，請針對問題說明法令依據及條文，依據函釋之日期及文號。**無關之法規切勿贅述**，僅援引最核心相關的條文。
 3. 最新法規：請務必以台灣官方最新發布的勞動法令（如全國法規資料庫、勞動部最新函釋）為準。
 
 【核心守則】
@@ -119,7 +116,6 @@ st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon
 
 st.markdown("""
 <style>
-    /* 強制全局字體與顏色 */
     html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
     h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
@@ -133,7 +129,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況。例如：性別平等工作法（申請育嬰留職停薪、性別歧視及職場性騷擾問題等）就業服務法（就業歧視、薪資揭示問題等）、勞動基準法（工時、工資問題等）。顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
+st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，根據台灣法規，為您進行環境友善度評估與法理分析。")
 
 if "chat_session" not in st.session_state:
     st.session_state.chat_session = model.start_chat(history=[])
@@ -168,28 +164,43 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
-    st.subheader("📝 您對分析滿意嗎？")
+    st.subheader("📝 您對本次分析滿意嗎？")
     
     col1, col2 = st.columns(2)
+    
+    # 🎯 左側：滿意度 1-10 分評分區塊
     with col1:
-        if st.button("👍 很有幫助"):
-            log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="滿意", status="結案")
-            st.success("感謝您的回饋！")
+        with st.form("rating_form"):
+            st.markdown("**請給予滿意度評分**")
+            score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
+            if st.form_submit_button("送出評分"):
+                # 寫入試算表
+                log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback=f"評分：{score}分", status="結案")
+                # 發送 LINE 通知給管理員
+                send_line_message(f"📊【滿意度評分回饋】\n系統剛收到一筆新評分：{score} 分！\n民眾提問概要：{st.session_state.last_user_msg[:30]}...")
+                st.success(f"感謝您的回饋！您給予了 {score} 分。")
             
+    # 🎯 右側：專人服務請求按鈕
     with col2:
-        if st.button("❓ 需專人補充回復"):
+        st.markdown("**需要進一步的專人協助嗎？**")
+        if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
+    # 🎯 專人服務表單區塊
     if st.session_state.get("show_expert_form", False):
+        st.markdown("---")
         with st.form("pro_contact"):
-            st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
+            st.info("請填寫聯繫資訊，基隆市政府人員將於上班時間聯繫您。")
             
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
-            contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
+            
+            # 新增 LINE 回覆選項
+            contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆", "LINE 回覆"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
+            line_id = st.text_input("您的 LINE ID (若選 LINE 回覆請務必填寫)")
             note = st.text_area("其他備註說明")
             
             st.markdown("---")
@@ -197,17 +208,24 @@ if "last_ai_reply" in st.session_state:
             
             if st.form_submit_button("送出申請"):
                 if not consent:
-                    st.error("⚠️ 請勾選同意個資聲明，我們才能派專人為您服務喔！")
+                    st.error("⚠️ 請勾選同意個資聲明，我們才能依法為您服務喔！")
                 elif not name:
                     st.error("請提供您的姓名或稱呼。")
                 elif contact_method == "電話回覆" and not phone:
                     st.error("⚠️ 您選擇了「電話回覆」，請務必填寫聯絡電話。")
                 elif contact_method == "Email 回覆" and not email:
                     st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
+                elif contact_method == "LINE 回覆" and not line_id:
+                    st.error("⚠️ 您選擇了「LINE 回覆」，請務必填寫您的 LINE ID。")
                 else:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     
-                    final_note = f"【希望以 {contact_method}】\n{note}" if note else f"【希望以 {contact_method}】"
+                    # 將 LINE ID 整併進備註欄位中
+                    final_note = f"【希望以 {contact_method}】\n"
+                    if contact_method == "LINE 回覆":
+                        final_note += f"LINE ID: {line_id}\n"
+                    if note:
+                        final_note += f"備註: {note}"
                     
                     log_to_sheets_perfect(
                         st.session_state.last_user_msg, 
@@ -222,8 +240,13 @@ if "last_ai_reply" in st.session_state:
                     )
                     
                     # 傳送 LINE 即時推播通知
-                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n電話：{phone}\nEmail：{email}\n備註：{note}\n請盡速至試算表查看詳情。"
+                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n"
+                    if contact_method == "電話回覆": notify_msg += f"電話：{phone}\n"
+                    elif contact_method == "Email 回覆": notify_msg += f"Email：{email}\n"
+                    elif contact_method == "LINE 回覆": notify_msg += f"LINE ID：{line_id}\n"
+                    notify_msg += f"備註：{note}\n請勞資關係科同仁盡速至試算表查看。"
+                    
                     send_line_message(notify_msg)
                     
-                    st.success(f"{name} {title} 好，你的申請已送出！專人將儘速與你聯繫。")
+                    st.success(f"{name} {title} 好，您的申請已成功送出！專人將儘速與您聯繫。")
                     st.session_state.show_expert_form = False
