@@ -79,7 +79,7 @@ def send_line_message(message_text):
         print(f"LINE 系統異常：{e}")
 
 # ==========================================
-# 4. 核心大腦設定 (⚖️ 強制防幻想機制)
+# 4. 核心大腦設定 (⚖️ 強制防幻想機制與官方資源)
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
@@ -97,7 +97,13 @@ SYSTEM_PROMPT = """
    - 若涉及年齡、容貌、身心障礙等因素，歸類為違反《就業服務法》的「就業歧視」。
 2. 勞動條件檢核：涉及工時、工資問題請引用《勞動基準法》及相關勞動法令。
 3. 輸出健檢報告：給予 1-100 分綜合評分，並提供具體蒐證建議與申訴管道。
-4. 官方結語提醒：在每一次回答的最後一行，固定加上這句話：「如仍有疑義歡迎來電02-24287801 基隆市政府關心你」。
+4. 官方結語與查證連結：在每一次回答的最末端，請固定附上以下官方資源與結語：
+   ---
+   📚 **官方查證資源：**
+   * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
+   * 全國法規資料庫：https://law.moj.gov.tw/
+   
+   📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
 """
 
 try:
@@ -116,7 +122,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 5. 網頁介面佈局與深色模式防呆美化
+# 5. 網頁介面佈局與側邊欄實用資源
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -133,6 +139,13 @@ st.markdown("""
     div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover { background-color: #00509E !important; color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
+
+# 🎯 側邊欄：實用資源連結
+with st.sidebar:
+    st.markdown("### 🏛️ 官方實用資源")
+    st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
+    st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
+    st.markdown("[📁 勞動基準法規彙編](https://www.mol.gov.tw/1607/28162/28166/28268/28272/)")
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
@@ -160,8 +173,8 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 
             except Exception as e:
                 if "429" in str(e):
-                    st.error("🌟 系統目前繁忙中（配額暫時已達上限，請稍候片刻再試）。")
-                    st.info("如您有急迫法律需求，歡迎致電基隆市政府諮詢專線：02-24287801。")
+                    st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
+                    st.info("如您有急迫法律需求，歡迎致電基隆市政府法制及勞動處諮詢專線：02-24287801。")
                 else:
                     st.error(f"⚠️ 連線錯誤：{e}")
 
@@ -196,12 +209,11 @@ if "last_ai_reply" in st.session_state:
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
-            st.info("請填寫聯繫資訊，基隆市政府人員將於上班時間聯繫您。")
+            st.info("請填寫聯繫資訊，基隆市政府法制及勞動處人員將於上班時間聯繫您。")
             
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             
-            # 🎯 修正：移除 LINE 回覆，僅保留電話與 Email
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
@@ -209,7 +221,7 @@ if "last_ai_reply" in st.session_state:
             note = st.text_area("其他備註說明")
             
             st.markdown("---")
-            consent = st.checkbox("我同意基隆市政府依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
+            consent = st.checkbox("我同意基隆市政府法制及勞動處依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
             
             if st.form_submit_button("送出申請"):
                 if not consent:
@@ -243,7 +255,7 @@ if "last_ai_reply" in st.session_state:
                     notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n"
                     if contact_method == "電話回覆": notify_msg += f"電話：{phone}\n"
                     elif contact_method == "Email 回覆": notify_msg += f"Email：{email}\n"
-                    notify_msg += f"備註：{note}\n請勞資關係科同仁盡速至試算表查看。"
+                    notify_msg += f"備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看。"
                     
                     send_line_message(notify_msg)
                     
