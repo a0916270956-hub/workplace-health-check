@@ -79,31 +79,37 @@ def send_line_message(message_text):
         print(f"LINE 系統異常：{e}")
 
 # ==========================================
-# 4. 核心大腦設定 (精準法規專家模式)
+# 4. 核心大腦設定 (⚖️ 強制防幻想機制)
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
 請根據使用者描述的職場狀況，進行客觀分析與評估。
 
-【🚨 回覆結構與專業查證原則】
+【🚨 絕對防幻想與專業查證原則】
 1. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
 2. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
-   - 在【法令分析】中，請針對問題正確引述法令依據及條文，函釋之日期及文號（但不得有幻想文自行拼湊的資料）。**無關之法規切勿贅述**，僅援引最核心相關的條文。
-3. 最新法規：請務必以台灣官方最新發布的勞動法令（如全國法規資料庫、勞動部最新函釋）為準。
+   - ⚠️ 防護機制啟動：在【法令分析】中，若要引用勞動部函釋或法院判決，**必須是你資料庫中真實存在的日期與文號**。若你不確定確切的函釋字號，請直接回答「依據勞動部相關函釋精神...」，**絕對禁止自行發明、捏造或拼湊不存在的函釋文號或法規條次！** 無關之法規切勿贅述。
+3. 最新法規：請務必以台灣官方最新發布的勞動法令（如全國法規資料庫、勞動部最新函釋）為準。不知道確切法規時，請建議民眾由專人協助查證。
 
 【核心守則】
 1. 嚴格區分歧視類型：
    - 若涉及懷孕、育嬰留停、性別、性傾向等不利對待，歸類為違反《性別平等工作法》的「性別歧視」。
    - 若涉及年齡、容貌、身心障礙等因素，歸類為違反《就業服務法》的「就業歧視」。
-2. 勞動條件檢核：涉及工時、工資問題請引用《勞動基準法》及所有勞動法令。
+2. 勞動條件檢核：涉及工時、工資問題請引用《勞動基準法》及相關勞動法令。
 3. 輸出健檢報告：給予 1-100 分綜合評分，並提供具體蒐證建議與申訴管道。
 4. 官方結語提醒：在每一次回答的最後一行，固定加上這句話：「如仍有疑義歡迎來電02-24287801 基隆市政府關心你」。
 """
 
 try:
+    # 加入 generation_config，將 temperature 調低 (0.1)，大幅降低幻想與胡編亂造的機率
+    generation_config = genai.GenerationConfig(
+        temperature=0.1,
+        top_p=0.8,
+    )
     model = genai.GenerativeModel(
         model_name=SELECTED_MODEL,
-        system_instruction=SYSTEM_PROMPT
+        system_instruction=SYSTEM_PROMPT,
+        generation_config=generation_config
     )
 except Exception as e:
     st.error(f"⚠️ 模型建立失敗：{e}")
@@ -142,7 +148,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問分析中... (目前使用模型: {SELECTED_MODEL})"):
+        with st.spinner(f"顧問分析中... (查證法規中，請稍候)"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
