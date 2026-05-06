@@ -102,6 +102,7 @@ SYSTEM_PROMPT = """
    📚 **官方查證資源：**
    * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
    * 全國法規資料庫：https://law.moj.gov.tw/
+   * 勞動基準法規彙編：https://bt.n8.com.tw/ebooks/19876357046960c3bd88d23/?search=204
    
    📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
 """
@@ -145,7 +146,7 @@ with st.sidebar:
     st.markdown("### 🏛️ 官方實用資源")
     st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
     st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
-    st.markdown("[📁 勞動基準法規彙編](https://www.mol.gov.tw/1607/28162/28166/28268/28272/)")
+    st.markdown("[📁 勞動基準法規彙編](https://bt.n8.com.tw/ebooks/19876357046960c3bd88d23/?search=204)")
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
