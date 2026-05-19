@@ -17,10 +17,27 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 強制使用最高邏輯推理模型 (解決胡亂引用法條)
+# 2. 🎯 動態高智商模型選擇 (完美解決 404 錯誤)
 # ==========================================
-# 直接鎖定邏輯最強的 Pro 模型，捨棄較易出錯的快速版模型
-SELECTED_MODEL = 'gemini-1.5-pro'
+try:
+    # 抓取您 API Key 實際可用的所有模型
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    # 優先鎖定邏輯最強的 Pro 模型 (依序尋找可用版本)
+    if 'models/gemini-1.5-pro-latest' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-pro-latest'
+    elif 'models/gemini-1.5-pro' in available_models:
+        SELECTED_MODEL = 'gemini-1.5-pro'
+    elif 'models/gemini-1.0-pro-latest' in available_models:
+        SELECTED_MODEL = 'gemini-1.0-pro-latest'
+    elif 'models/gemini-pro' in available_models:
+        SELECTED_MODEL = 'gemini-pro'
+    else:
+        # 如果真的都沒有，才用系統預設的第一個
+        SELECTED_MODEL = available_models[0].replace("models/", "")
+        
+except Exception as e:
+    SELECTED_MODEL = "gemini-1.5-pro-latest"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets)
