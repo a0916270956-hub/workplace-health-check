@@ -20,10 +20,8 @@ except Exception as e:
 # 2. 🎯 動態高智商模型選擇 (完美解決 404 錯誤)
 # ==========================================
 try:
-    # 抓取您 API Key 實際可用的所有模型
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
-    # 優先鎖定邏輯最強的 Pro 模型 (依序尋找可用版本)
     if 'models/gemini-1.5-pro-latest' in available_models:
         SELECTED_MODEL = 'gemini-1.5-pro-latest'
     elif 'models/gemini-1.5-pro' in available_models:
@@ -33,7 +31,6 @@ try:
     elif 'models/gemini-pro' in available_models:
         SELECTED_MODEL = 'gemini-pro'
     else:
-        # 如果真的都沒有，才用系統預設的第一個
         SELECTED_MODEL = available_models[0].replace("models/", "")
         
 except Exception as e:
@@ -221,7 +218,7 @@ if "last_ai_reply" in st.session_state:
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             
             phone = st.text_input("聯絡電話")
-            email = st.text_input("Email 回復")
+            email = st.text_input("Email 回覆")
             note = st.text_area("其他備註說明")
             
             st.markdown("---")
