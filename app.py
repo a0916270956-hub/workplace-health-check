@@ -17,24 +17,16 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 動態高智商模型選擇 (完美解決 404 錯誤)
+# 2. 🎯 動態高智商模型選擇
 # ==========================================
 try:
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
     if 'models/gemini-1.5-pro-latest' in available_models:
         SELECTED_MODEL = 'gemini-1.5-pro-latest'
-    elif 'models/gemini-1.5-pro' in available_models:
-        SELECTED_MODEL = 'gemini-1.5-pro'
-    elif 'models/gemini-1.0-pro-latest' in available_models:
-        SELECTED_MODEL = 'gemini-1.0-pro-latest'
-    elif 'models/gemini-pro' in available_models:
-        SELECTED_MODEL = 'gemini-pro'
     else:
-        SELECTED_MODEL = available_models[0].replace("models/", "")
-        
+        SELECTED_MODEL = 'gemini-1.5-pro'
 except Exception as e:
-    SELECTED_MODEL = "gemini-1.5-pro-latest"
+    SELECTED_MODEL = "gemini-1.5-pro"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets)
@@ -44,11 +36,8 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
-        
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 寫入順序：A(時間), B(提問), C(回覆), D(評價), E(狀態), F(姓名), G(性別), H(電話), I(Email), J(備註)
         sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
         print(f"資料庫紀錄異常：{e}")
@@ -61,36 +50,25 @@ def send_line_message(message_text):
         channel_access_token = st.secrets["LINE_CHANNEL_ACCESS_TOKEN"]
         admin_user_id = st.secrets["LINE_ADMIN_USER_ID"]
         url = "https://api.line.me/v2/bot/message/push"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {channel_access_token}"
-        }
-        data = {
-            "to": admin_user_id,
-            "messages": [{"type": "text", "text": message_text}]
-        }
-        res = requests.post(url, headers=headers, json=data)
-        
-        if res.status_code != 200:
-            st.warning(f"⚠️ LINE 通知無法送達，錯誤代碼：{res.status_code}。請檢查金鑰或權限設定。")
-            print(f"LINE 發送失敗：{res.text}")
-            
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {channel_access_token}"}
+        data = {"to": admin_user_id, "messages": [{"type": "text", "text": message_text}]}
+        requests.post(url, headers=headers, json=data)
     except Exception as e:
         print(f"LINE 系統異常：{e}")
 
 # ==========================================
-# 4. 核心大腦設定 (⚖️ 融合版終極防護 ＋ 黃金範本)
+# 4. 核心大腦設定 (⚖️ 究極防護 ＋ 黃金範本)
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
 
 【🚨 終極防護：精準對症下藥、防幻想與字數限制原則】
-1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
-2. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
-3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
-4. 🎯 精準鎖定法規 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。絕對禁止為了湊字數跨界亂引法條。
-5. 🛑 絕對禁止捏造字號：在【法令分析】中，「絕對禁止」自行發明、拼湊或臆測任何具體的「函釋字號」、「文號」、「判決字號」或「發布日期」。只要不具備 100% 把握，請一律使用「依據勞動部相關函釋精神」或「依據實務見解」帶過。
-6. 官方結語與查證連結：在每一次回答的最末端，請固定附上以下內容（計入 500 字內）：
+1. 嚴格字數限制：總字數嚴格控制在 500 字以內，文字極度精簡。
+2. 直接回覆：優先直接針對問題給出明確答案，承接情緒。
+3. 問題概述與法令分析：標示【問題概述】與【法令分析】。
+4. 🎯 精準鎖定：懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；勞動條件(薪資/工時/資遣)僅限《勞動基準法》。禁止湊字數跨界亂引。
+5. 🛑 絕對禁止捏造字號：禁止發明函釋字號、文號、判決字號或日期。不確定時一律使用「依據勞動部相關函釋精神」帶過。
+6. 固定結語：
    ---
    📚 **官方查證資源：**
    * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
@@ -99,11 +77,11 @@ SYSTEM_PROMPT = """
    📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
 
 【📖 黃金標準問答範例參考】
-若民眾提問類似以下情境，請嚴格模仿此範例的語氣與邏輯架構來回覆：
-民眾提問：「老闆說我還在試用期，所以明天不用來了，也不給我資遣費，這樣合法嗎？」
-標準回覆：「您好！遇到突然失去工作的情況一定很慌張，我們來看看法律怎麼說：
-【問題概述】您面臨的是試用期被解雇且未獲資遣費的爭議。
-【法令分析】依據勞動部實務見解，我國《勞動基準法》並無「試用期」的明文規定。只要受僱上班，雙方即成立勞動契約。因此，雇主若要單方面終止契約，即使在試用期內，仍必須符合《勞動基準法》第11條或第12條規定，且須依同法第16條及第17條（或勞工退休金條例第12條）給付預告工資與資遣費。雇主的說法已涉嫌違法，建議您保留打卡紀錄或對話截圖作為後續爭取權益的證據。
+若問題類似以下情境，請模仿此邏輯架構：
+民眾提問：「老闆說試用期不給資遣費，對嗎？」
+標準回覆：「您好！遇到突然失去工作一定很慌張。
+【問題概述】試用期被解雇且未獲資遣費的爭議。
+【法令分析】依勞動部實務見解，我國《勞動基準法》並無「試用期」規定。雇主終止契約須符《勞動基準法》第11條或12條規定，並依第16、17條給付資遣費。雇主說法違法，請保留相關紀錄作為證據。
 ---
 📚 **官方查證資源：**
 * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
@@ -113,27 +91,12 @@ SYSTEM_PROMPT = """
 """
 
 try:
-    # 溫度維持 0.0，保持絕對理智，不允許任何發散性聯想
-    generation_config = genai.GenerationConfig(
-        temperature=0.0,
-        top_p=0.8,
+    generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
+    model = genai.GenerativeModel(
+        model_name=SELECTED_MODEL,
+        system_instruction=SYSTEM_PROMPT,
+        generation_config=generation_config
     )
-    
-    # 🌟 雙重保險建立模型：嘗試開啟 Google Search 即時查證功能
-    try:
-        model = genai.GenerativeModel(
-            model_name=SELECTED_MODEL,
-            system_instruction=SYSTEM_PROMPT,
-            generation_config=generation_config,
-            tools="google_search_retrieval"
-        )
-    except Exception:
-        model = genai.GenerativeModel(
-            model_name=SELECTED_MODEL,
-            system_instruction=SYSTEM_PROMPT,
-            generation_config=generation_config
-        )
-
 except Exception as e:
     st.error(f"⚠️ 模型建立失敗：{e}")
     st.stop()
