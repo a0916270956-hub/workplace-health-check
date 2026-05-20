@@ -165,8 +165,9 @@ with st.sidebar:
     st.markdown("### 🏛️ 官方實用資源")
     st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
     st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
-    st.markdown("[📁 勞動基準法規彙編](https://www.mol.gov.tw/1607/28162/28166/28268/28272/)")
-
+    st.markdown("[📁 勞動基準法規彙編](https://drive.google.com/file/d/13jUCccLcmuAyHF3xScX82c1p7d-Ffl0X/view?usp=sharing)")
+    st.markdown("[📁 職場工作平權宣導手冊](https://drive.google.com/file/d/1iEHmk-y32nlM43f3dMurn46lAzCJ4gaK/view?usp=sharing)")
+    
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
 
