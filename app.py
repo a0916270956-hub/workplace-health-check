@@ -111,14 +111,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權函釋彙編》，為您進行專業法理分析。")
 
 # --- 核心：PDF 檔案上傳至 Gemini 系統大腦 ---
 if "uploaded_files_to_gemini" not in st.session_state:
-    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權函釋彙編.pdf"]
     uploaded_gemini_files = []
     
-    with st.spinner("⏳ 正在將《勞動法規彙編》與《平權手冊》載入 AI 系統大腦中，初次載入需時約 15-30 秒..."):
+    with st.spinner("⏳ 正在將《勞動法規彙編》與《平權函釋》載入 AI 系統大腦中，初次載入需時約 15-30 秒..."):
         for file_name in files_to_upload:
             if os.path.exists(file_name):
                 try:
