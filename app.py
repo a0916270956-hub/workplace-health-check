@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 import pytz
 import requests
+import tempfile
+import shutil
 
 # ==========================================
 # 1. 系統設定與 API 金鑰讀取
@@ -28,7 +30,7 @@ try:
     elif 'models/gemini-1.5-pro' in available_models:
         SELECTED_MODEL = 'gemini-1.5-pro'
     else:
-        SELECTED_MODEL = "gemini-1.5-pro" # 強制底線
+        SELECTED_MODEL = "gemini-1.5-pro"
 except Exception as e:
     SELECTED_MODEL = "gemini-1.5-pro"
 
@@ -62,27 +64,39 @@ def send_line_message(message_text):
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令的「基隆市政府職場友善度健檢顧問」。
+
 【🏆 最高指導原則：官方手冊優先】
 對話系統已經向你載入了最新的《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。
 當民眾提問時，你必須「優先且絕對」從這兩份官方檔案中搜尋相關條文、函釋與指引來回答。
 
 【🚨 終極防護：精準對症下藥、防幻想與字數限制原則】
-1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡。
-2. 直接回覆：首先承接使用者的情緒，並「優先直接針對問題給出明確的答案」。
-3. 問題概述與法令分析：明確標示出【問題概述】與【法令分析】兩個段落。
-4. 🎯 精準鎖定法規：懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件僅限《勞動基準法》。
-5. 🛑 絕對禁止捏造字號：除非你在上傳的 PDF 手冊中或大腦知識庫中確實查到該函釋字號，否則「絕對禁止」自行發明函釋字號或日期。
-6. 🛡️ 寧缺勿濫原則：若無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確，建議您直接向主管機關確認細節。」
-7. 官方結語與查證連結：在每一次回答的最末端，請固定附上：
+1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
+2. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
+3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
+4. 🎯 精準鎖定法規 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。絕對禁止為了湊字數跨界亂引法條。
+5. 🛑 絕對禁止捏造字號：在【法令分析】中，「絕對禁止」自行發明、拼湊或臆測任何具體的「函釋字號」、「文號」、「判決字號」或「發布日期」。除非你在上傳的 PDF 手冊中或大腦知識庫中確實查到該函釋字號，否則一律使用「依據勞動部相關函釋精神」或「依據實務見解」帶過。
+6. 🛡️ 寧缺勿濫原則：若民眾描述的情況過於模糊、或你完全無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確與寧缺勿濫，建議您直接向主管機關確認細節。」，絕對不允許強行猜測。
+7. 官方結語與查證連結：在每一次回答的最末端，請固定附上以下內容（計入 500 字內）：
    ---
    📚 **官方查證資源：**
    * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
    * 全國法規資料庫：https://law.moj.gov.tw/
+   
    📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
 
 【💎 專屬法規知識庫 (精準打擊區)】
-- 爭議點：
-- 強制引用：
+- 爭議點：公務機關技工、工友「考績獎金」是否計入平均工資？
+- 強制引用：行政院勞工委員會96年6月26日勞動2字第0960071251號函，不列入平均工資計算。
+
+【📖 黃金標準問答範例參考 (機器學習與模仿依據)】
+為確保回覆的高品質與可信度，請嚴格模仿以下幾種情境的語氣與邏輯架構來回覆民眾：
+[範例：勞基法爭議]
+民眾提問：「老闆說我還在試用期，所以明天不用來了，也不給我資遣費，這樣合法嗎？」
+標準回覆：「您好！遇到突然失去工作的情況一定很慌張，我們來看看法律怎麼說：
+【問題概述】您面臨的是試用期被解雇且未獲資遣費的爭議。
+【法令分析】依據勞動部實務見解，我國《勞動基準法》並無「試用期」的明文規定。只要受僱上班，雙方即成立勞動契約。因此，雇主若要單方面終止契約，即使在試用期內，仍必須符合《勞動基準法》第11條或第12條規定，且須依同法第16條及第17條（或勞退條例第12條）給付預告工資與資遣費。雇主的說法已涉嫌違法，建議保留對話截圖作為證據。
+---
+📚 **官方查證資源：** (略)」
 """
 
 try:
@@ -97,7 +111,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 5. 網頁介面佈局與 📚 官方檔案載入機制
+# 5. 網頁介面佈局與 📚 官方檔案載入機制 (權限破解版)
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -110,37 +124,45 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權函釋彙編》，為您進行專業法理分析。")
+# 🎯 側邊欄：實用資源連結
+with st.sidebar:
+    st.markdown("### 🏛️ 官方實用資源")
+    st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
+    st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
 
-# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 ---
+st.title("⚖️ 工作場所融合度 AI 健檢系統")
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
+
+# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 (採用暫存資料夾破解權限) ---
 if "uploaded_files_to_gemini" not in st.session_state:
-    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權函釋彙編.pdf"]
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_gemini_files = []
     
-    with st.spinner("⏳ 正在將《勞動法規彙編》與《平權函釋》載入 AI 系統大腦中，初次載入需時約 15-30 秒..."):
+    with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
         for file_name in files_to_upload:
             if os.path.exists(file_name):
                 try:
-                    # 將檔案上傳至 Google Gemini 伺服器
-                    gemini_file = genai.upload_file(file_name)
-                    # 等待檔案處理完成 (PDF 需要一點時間解析)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                        shutil.copyfile(file_name, tmp_file.name)
+                        gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
+                        
                     while gemini_file.state.name == "PROCESSING":
                         time.sleep(2)
                         gemini_file = genai.get_file(gemini_file.name)
+                        
                     uploaded_gemini_files.append(gemini_file)
                 except Exception as e:
                     print(f"檔案 {file_name} 上傳失敗：{e}")
+                    st.warning(f"⚠️ {file_name} 載入失敗，但系統仍可依照基本法理為您服務。")
             else:
-                print(f"找不到檔案：{file_name}，請確認是否放置於同一資料夾。")
+                print(f"找不到檔案：{file_name}")
                 
     st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
 
-# --- 初始化對話紀錄 (將 PDF 餵給模型作為初始對話) ---
+# --- 初始化對話紀錄 ---
 if "chat_session" not in st.session_state:
     initial_history = []
     
-    # 如果有成功上傳 PDF，把它當作第一句話餵給 AI
     if st.session_state.uploaded_files_to_gemini:
         parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
         initial_history.append({"role": "user", "parts": parts})
@@ -148,9 +170,8 @@ if "chat_session" not in st.session_state:
     
     st.session_state.chat_session = model.start_chat(history=initial_history)
 
-# --- 顯示歷史訊息 (略過我們偷偷餵給 AI 的 PDF 檔案訊息) ---
+# --- 顯示歷史訊息 ---
 for message in st.session_state.chat_session.history:
-    # 不顯示最初載入檔案的那兩條隱藏指令
     if message.role == "user" and "請徹底熟讀以上兩份官方手冊" in message.parts[-1].text:
         continue
     if message.role == "model" and "收到！我已完整讀取" in message.parts[0].text:
@@ -226,7 +247,7 @@ if "last_ai_reply" in st.session_state:
                     title = "先生" if user_gender == "男" else "女士" if user_gender == "女" else ""
                     final_note = f"【希望以 {contact_method}】\n備註: {note}"
                     
-                    log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="需專人服務", status="待處理", name=name, gender=user_gender, phone=phone, email=email, note=final_note)
+                    log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="專人服務", status="待處理", name=name, gender=user_gender, phone=phone, email=email, note=final_note)
                     send_line_message(f"🚨【專人服務請求】\n民眾：{name} {title}\n偏好：{contact_method}\n請至試算表查看。")
                     st.success("申請已送出！")
                     st.session_state.show_expert_form = False
