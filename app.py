@@ -111,7 +111,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 5. 網頁介面佈局與 📚 官方檔案載入機制 (權限破解版)
+# 5. 網頁介面佈局與 📚 官方檔案載入機制 (終極防護版)
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -133,17 +133,23 @@ with st.sidebar:
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
-# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 (採用暫存資料夾破解權限) ---
+# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 (採用絕對路徑與嚴格攔截網) ---
 if "uploaded_files_to_gemini" not in st.session_state:
     files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_gemini_files = []
     
     with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
+        # 取得 app.py 當前所在的絕對資料夾路徑
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
         for file_name in files_to_upload:
-            if os.path.exists(file_name):
-                try:
+            file_path = os.path.join(current_dir, file_name)
+            
+            # 🛡️ 雙重防護第一層：確定檔案真的存在才進行處理
+            if os.path.exists(file_path):
+                try: # 🛡️ 雙重防護第二層：攔截所有讀取與上傳異常，保證絕不當機
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        shutil.copyfile(file_name, tmp_file.name)
+                        shutil.copyfile(file_path, tmp_file.name)
                         gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
                         
                     while gemini_file.state.name == "PROCESSING":
@@ -153,9 +159,10 @@ if "uploaded_files_to_gemini" not in st.session_state:
                     uploaded_gemini_files.append(gemini_file)
                 except Exception as e:
                     print(f"檔案 {file_name} 上傳失敗：{e}")
-                    st.warning(f"⚠️ {file_name} 載入失敗，但系統仍可依照基本法理為您服務。")
+                    st.warning(f"⚠️ {file_name} 載入程序異常，但系統仍可依照基本法理為您服務。")
             else:
-                print(f"找不到檔案：{file_name}")
+                # 找不到檔案時，在網頁溫柔提示，而不是直接崩潰
+                st.warning(f"⚠️ 尚未在系統資料夾中偵測到「{file_name}」，請確認是否已成功上傳至 GitHub，目前將以基礎法理為您服務。")
                 
     st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
 
