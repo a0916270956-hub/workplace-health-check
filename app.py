@@ -2,6 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 import gspread
 import json
+import os
+import time
 from datetime import datetime
 import pytz
 import requests
@@ -21,114 +23,70 @@ except Exception as e:
 # ==========================================
 try:
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
     if 'models/gemini-1.5-pro-latest' in available_models:
         SELECTED_MODEL = 'gemini-1.5-pro-latest'
     elif 'models/gemini-1.5-pro' in available_models:
         SELECTED_MODEL = 'gemini-1.5-pro'
-    elif 'models/gemini-1.0-pro-latest' in available_models:
-        SELECTED_MODEL = 'gemini-1.0-pro-latest'
-    elif 'models/gemini-pro' in available_models:
-        SELECTED_MODEL = 'gemini-pro'
     else:
-        SELECTED_MODEL = available_models[0].replace("models/", "")
-        
+        SELECTED_MODEL = "gemini-1.5-pro" # 強制底線
 except Exception as e:
-    SELECTED_MODEL = "gemini-1.5-pro-latest"
+    SELECTED_MODEL = "gemini-1.5-pro"
 
 # ==========================================
-# 3. 完美版寫入函數 (Google Sheets)
+# 3. 完美版寫入函數 (Google Sheets) & LINE 通知
 # ==========================================
 def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
     try:
         creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
-        
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
-        
         sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
         print(f"資料庫紀錄異常：{e}")
 
-# ==========================================
-# 3.1 LINE Messaging API 強化通知功能
-# ==========================================
 def send_line_message(message_text):
     try:
         channel_access_token = st.secrets["LINE_CHANNEL_ACCESS_TOKEN"]
         admin_user_id = st.secrets["LINE_ADMIN_USER_ID"]
         url = "https://api.line.me/v2/bot/message/push"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {channel_access_token}"
-        }
-        data = {
-            "to": admin_user_id,
-            "messages": [{"type": "text", "text": message_text}]
-        }
-        res = requests.post(url, headers=headers, json=data)
-        
-        if res.status_code != 200:
-            st.warning(f"⚠️ LINE 通知無法送達，錯誤代碼：{res.status_code}。請檢查金鑰或權限設定。")
-            print(f"LINE 發送失敗：{res.text}")
-            
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {channel_access_token}"}
+        data = {"to": admin_user_id, "messages": [{"type": "text", "text": message_text}]}
+        requests.post(url, headers=headers, json=data)
     except Exception as e:
         print(f"LINE 系統異常：{e}")
 
 # ==========================================
-# 4. 核心大腦設定 (⚖️ 融合版終極防護 ＋ 專屬法規知識庫)
+# 4. 核心大腦設定 (⚖️ 融合官方手冊強制檢索)
 # ==========================================
 SYSTEM_PROMPT = """
-你是一位精通台灣勞動法令、具備高度專業與同理心的「職場友善度健檢顧問」。
+你是一位精通台灣勞動法令的「基隆市政府職場友善度健檢顧問」。
+【🏆 最高指導原則：官方手冊優先】
+對話系統已經向你載入了最新的《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。
+當民眾提問時，你必須「優先且絕對」從這兩份官方檔案中搜尋相關條文、函釋與指引來回答。
 
 【🚨 終極防護：精準對症下藥、防幻想與字數限制原則】
-1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
-2. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
-3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
-4. 🎯 精準鎖定法規 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。絕對禁止為了湊字數跨界亂引法條。
-5. 🛑 絕對禁止捏造字號：在【法令分析】中，「絕對禁止」自行發明、拼湊或臆測任何具體的「函釋字號」、「文號」、「判決字號」或「發布日期」。只要不具備 100% 把握，請一律使用「依據勞動部相關函釋精神」或「依據實務見解」帶過。
-6. 🛡️ 寧缺勿濫原則：若民眾描述的情況過於模糊、或你完全無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確與寧缺勿濫，建議您直接向主管機關確認細節。」，絕對不允許強行猜測。
-7. 官方結語與查證連結：在每一次回答的最末端，請固定附上以下內容（計入 500 字內）：
+1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡。
+2. 直接回覆：首先承接使用者的情緒，並「優先直接針對問題給出明確的答案」。
+3. 問題概述與法令分析：明確標示出【問題概述】與【法令分析】兩個段落。
+4. 🎯 精準鎖定法規：懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件僅限《勞動基準法》。
+5. 🛑 絕對禁止捏造字號：除非你在上傳的 PDF 手冊中或大腦知識庫中確實查到該函釋字號，否則「絕對禁止」自行發明函釋字號或日期。
+6. 🛡️ 寧缺勿濫原則：若無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確，建議您直接向主管機關確認細節。」
+7. 官方結語與查證連結：在每一次回答的最末端，請固定附上：
    ---
    📚 **官方查證資源：**
    * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
    * 全國法規資料庫：https://law.moj.gov.tw/
-   
    📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
 
 【💎 專屬法規知識庫 (精準打擊區)】
-當民眾提問命中以下特定爭議時，請「強制」引用對應的官方函釋字號，以展現絕對的專業度與公信力：
-- 爭議點：公務機關技工、工友「考績獎金」或「年終獎金」是否計入平均工資？
-- 強制引用與回答：請明確引用「行政院勞工委員會96年6月26日勞動2字第0960071251號函」，並回答：「公務機構於年終及依年終考核發給之考績獎金既非勞動契約事先約定之給與，且發放之標準及對象亦屬不確定，為勞工不可期待之報酬，難謂屬工資，不列入平均工資計算。」
-
-【📖 黃金標準問答範例參考 (機器學習與模仿依據)】
-為確保回覆的高品質與可信度，請嚴格模仿以下幾種情境的語氣與邏輯架構來回覆民眾：
-
-[範例一：勞基法爭議]
-民眾提問：「老闆說我還在試用期，所以明天不用來了，也不給我資遣費，這樣合法嗎？」
-標準回覆：「您好！遇到突然失去工作的情況一定很慌張，我們來看看法律怎麼說：
-【問題概述】您面臨的是試用期被解雇且未獲資遣費的爭議。
-【法令分析】依據勞動部實務見解，我國《勞動基準法》並無「試用期」的明文規定。只要受僱上班，雙方即成立勞動契約。因此，雇主若要單方面終止契約，即使在試用期內，仍必須符合《勞動基準法》第11條或第12條規定，且須依同法第16條及第17條（或勞退條例第12條）給付預告工資與資遣費。雇主的說法已涉嫌違法，建議保留對話截圖作為證據。
----
-📚 **官方查證資源：** (略)」
-
-[範例二：性平法爭議]
-民眾提問：「我懷孕了，結果公司說我無法勝任現在的業務，要我轉做兼職並扣我一半薪水，能這樣嗎？」
-標準回覆：「您好！懷孕期間還要面對工作變動，真是辛苦您了！
-【問題概述】您面臨的是因懷孕而遭受單方面調動與減薪的爭議。
-【法令分析】依據《性別平等工作法》第11條規定，雇主對受僱者之薪資、配置、考績或陞遷等，不得因懷孕而有差別待遇。若公司僅因您懷孕就單方面強迫您轉兼職並降薪，已明顯涉嫌性別歧視。此外，依《勞動基準法》第51條，女工在妊娠期間，如有較為輕易之工作，得申請改調，且雇主不得減少其工資。建議您先拒絕簽署任何變更協議，並向市府提出申訴。
----
-📚 **官方查證資源：** (略)」
+- 爭議點：
+- 強制引用：
 """
 
 try:
-    # 溫度維持 0.0，保持絕對理智與精準度
-    generation_config = genai.GenerationConfig(
-        temperature=0.0,
-        top_p=0.8,
-    )
+    generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
     model = genai.GenerativeModel(
         model_name=SELECTED_MODEL,
         system_instruction=SYSTEM_PROMPT,
@@ -139,7 +97,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 5. 網頁介面佈局與側邊欄實用資源
+# 5. 網頁介面佈局與 📚 官方檔案載入機制
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -149,35 +107,64 @@ st.markdown("""
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
     h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
     .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
-    p, .stMarkdown p { color: #262730 !important; }
-    div[data-testid="stChatInput"] textarea, input, textarea { background-color: #FFFFFF !important; color: #262730 !important; -webkit-text-fill-color: #262730 !important; }
-    ::placeholder { color: #A0A0A0 !important; -webkit-text-fill-color: #A0A0A0 !important; }
-    div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button { background-color: #FFFFFF !important; color: #00509E !important; border: 1px solid #00509E !important; font-weight: bold !important; }
-    div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover { background-color: #00509E !important; color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# 🎯 側邊欄：實用資源連結
-with st.sidebar:
-    st.markdown("### 🏛️ 官方實用資源")
-    st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
-    st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
-
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！請簡單描述您在職場上遇到的狀況，顧問將根據台灣法規，為您進行環境友善度評估與法理分析。")
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
+# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 ---
+if "uploaded_files_to_gemini" not in st.session_state:
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
+    uploaded_gemini_files = []
+    
+    with st.spinner("⏳ 正在將《勞動法規彙編》與《平權手冊》載入 AI 系統大腦中，初次載入需時約 15-30 秒..."):
+        for file_name in files_to_upload:
+            if os.path.exists(file_name):
+                try:
+                    # 將檔案上傳至 Google Gemini 伺服器
+                    gemini_file = genai.upload_file(file_name)
+                    # 等待檔案處理完成 (PDF 需要一點時間解析)
+                    while gemini_file.state.name == "PROCESSING":
+                        time.sleep(2)
+                        gemini_file = genai.get_file(gemini_file.name)
+                    uploaded_gemini_files.append(gemini_file)
+                except Exception as e:
+                    print(f"檔案 {file_name} 上傳失敗：{e}")
+            else:
+                print(f"找不到檔案：{file_name}，請確認是否放置於同一資料夾。")
+                
+    st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
+
+# --- 初始化對話紀錄 (將 PDF 餵給模型作為初始對話) ---
 if "chat_session" not in st.session_state:
-    st.session_state.chat_session = model.start_chat(history=[])
+    initial_history = []
+    
+    # 如果有成功上傳 PDF，把它當作第一句話餵給 AI
+    if st.session_state.uploaded_files_to_gemini:
+        parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
+        initial_history.append({"role": "user", "parts": parts})
+        initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守手冊內容為市民解答。"]})
+    
+    st.session_state.chat_session = model.start_chat(history=initial_history)
 
+# --- 顯示歷史訊息 (略過我們偷偷餵給 AI 的 PDF 檔案訊息) ---
 for message in st.session_state.chat_session.history:
+    # 不顯示最初載入檔案的那兩條隱藏指令
+    if message.role == "user" and "請徹底熟讀以上兩份官方手冊" in message.parts[-1].text:
+        continue
+    if message.role == "model" and "收到！我已完整讀取" in message.parts[0].text:
+        continue
+        
     role = "user" if message.role == "user" else "assistant"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
+# --- 處理使用者提問 ---
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問深度分析與法規查證中... 請稍候"):
+        with st.spinner(f"顧問正翻閱官方手冊深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -190,7 +177,6 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
             except Exception as e:
                 if "429" in str(e):
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
-                    st.info("如您有急迫法律需求，歡迎致電基隆市政府法制及勞動處諮詢專線：02-24287801。")
                 else:
                     st.error(f"⚠️ 連線錯誤：{e}")
 
@@ -202,14 +188,13 @@ if "last_ai_reply" in st.session_state:
     st.subheader("📝 您對本次分析滿意嗎？")
     
     col1, col2 = st.columns(2)
-    
     with col1:
         with st.form("rating_form"):
             st.markdown("**請給予滿意度評分**")
             score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
             if st.form_submit_button("送出評分"):
                 log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback=f"評分：{score}分", status="結案")
-                send_line_message(f"📊【滿意度評分回饋】\n系統剛收到一筆新評分：{score} 分！\n民眾提問概要：{st.session_state.last_user_msg[:30]}...")
+                send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                 st.success(f"感謝您的回饋！您給予了 {score} 分。")
             
     with col2:
@@ -221,53 +206,27 @@ if "last_ai_reply" in st.session_state:
         st.markdown("---")
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，基隆市政府法制及勞動處人員將於上班時間聯繫您。")
-            
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
-            
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
-            
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回覆")
             note = st.text_area("其他備註說明")
-            
             st.markdown("---")
-            consent = st.checkbox("我同意基隆市政府法制及勞動處依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
+            consent = st.checkbox("我同意基隆市政府依個資法蒐集聯繫使用。")
             
             if st.form_submit_button("送出申請"):
                 if not consent:
-                    st.error("⚠️ 請勾選同意個資聲明，我們才能依法為您服務喔！")
-                elif not name:
-                    st.error("請提供您的姓名或稱呼。")
+                    st.error("⚠️ 請勾選同意個資聲明！")
                 elif contact_method == "電話回覆" and not phone:
-                    st.error("⚠️ 您選擇了「電話回覆」，請務必填寫聯絡電話。")
+                    st.error("⚠️ 請務必填寫聯絡電話。")
                 elif contact_method == "Email 回覆" and not email:
-                    st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
+                    st.error("⚠️ 請務必填寫 Email。")
                 else:
-                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
+                    title = "先生" if user_gender == "男" else "女士" if user_gender == "女" else ""
+                    final_note = f"【希望以 {contact_method}】\n備註: {note}"
                     
-                    final_note = f"【希望以 {contact_method}】\n"
-                    if note:
-                        final_note += f"備註: {note}"
-                    
-                    log_to_sheets_perfect(
-                        st.session_state.last_user_msg, 
-                        st.session_state.last_ai_reply, 
-                        feedback="需專人服務", 
-                        status="待處理",
-                        name=name,        
-                        gender=user_gender, 
-                        phone=phone,      
-                        email=email,      
-                        note=final_note   
-                    )
-                    
-                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n偏好：{contact_method}\n"
-                    if contact_method == "電話回覆": notify_msg += f"電話：{phone}\n"
-                    elif contact_method == "Email 回覆": notify_msg += f"Email：{email}\n"
-                    notify_msg += f"備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看。"
-                    
-                    send_line_message(notify_msg)
-                    
-                    st.success(f"{name} {title} 好，您的申請已成功送出！專人將儘速與您聯繫。")
+                    log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="需專人服務", status="待處理", name=name, gender=user_gender, phone=phone, email=email, note=final_note)
+                    send_line_message(f"🚨【專人服務請求】\n民眾：{name} {title}\n偏好：{contact_method}\n請至試算表查看。")
+                    st.success("申請已送出！")
                     st.session_state.show_expert_form = False
