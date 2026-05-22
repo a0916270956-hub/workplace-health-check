@@ -66,7 +66,7 @@ SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令的「基隆市政府職場友善度健檢顧問」。
 
 【🏆 最高指導原則：官方手冊優先】
-對話系統已經向你載入了最新的《114年勞動基準法規》與《職場工作平權宣導手冊》。
+對話系統已經向你載入了最新的《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。
 當民眾提問時，你必須「優先且絕對」從這兩份官方檔案中搜尋相關條文、函釋與指引來回答。
 
 【🚨 終極防護：精準對症下藥、防幻想與字數限制原則】
@@ -131,11 +131,11 @@ with st.sidebar:
     st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
 
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
 # --- 核心：PDF 檔案上傳至 Gemini 系統大腦 (採用絕對路徑與嚴格攔截網) ---
 if "uploaded_files_to_gemini" not in st.session_state:
-    files_to_upload = ["114年勞動基準法規.pdf", "職場工作平權宣導手冊.pdf"]
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_gemini_files = []
     
     with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
@@ -173,7 +173,7 @@ if "chat_session" not in st.session_state:
     if st.session_state.uploaded_files_to_gemini:
         parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
         initial_history.append({"role": "user", "parts": parts})
-        initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規》與《職場工作平權宣導手冊》。我將嚴格遵守手冊內容為市民解答。"]})
+        initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守手冊內容為市民解答。"]})
     
     st.session_state.chat_session = model.start_chat(history=initial_history)
 
