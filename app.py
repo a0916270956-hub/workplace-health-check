@@ -43,14 +43,12 @@ with st.sidebar:
     st.markdown("### ⚙️ 系統進階設定")
     st.markdown("若對話時發生 404 錯誤，請從下方選單切換您的金鑰所支援的模型：")
     try:
-        # 動態抓取該 API Key 真正可以使用的模型清單
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
         if not available_models:
             st.error("⚠️ 您的 API Key 無法存取任何可用的模型！請至 Google AI Studio 確認金鑰狀態。")
             st.stop()
             
-        # 預設優先選擇 1.5-flash 或 1.5-pro (避開 8b 輕量版)
         default_index = 0
         for i, m_name in enumerate(available_models):
             if "gemini-1.5-flash" in m_name and "8b" not in m_name:
@@ -60,21 +58,47 @@ with st.sidebar:
         SELECTED_MODEL = st.selectbox("請選擇 AI 模型", available_models, index=default_index)
     except Exception as e:
         st.error(f"讀取模型清單失敗：{e}")
-        SELECTED_MODEL = "models/gemini-1.5-flash" # 基礎備案
+        SELECTED_MODEL = "models/gemini-1.5-flash"
 
 # ==========================================
-# 3. 完美版寫入函數 (Google Sheets) & LINE 通知
+# 3. 完美版寫入函數 (Google Sheets 同行寫入與更新機制)
 # ==========================================
 def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
+    """ 負責初次寫入提問紀錄，並回傳該筆資料在 Google Sheets 的列號(Row Index) """
     try:
         creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
         tw_tz = pytz.timezone('Asia/Taipei')
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
-        sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
+        
+        row_data = [current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note]
+        sheet.append_row(row_data)
+        
+        # 取得剛才寫入的列號 (總行數即為當前寫入的列)
+        return len(sheet.get_all_values())
     except Exception as e:
-        pass # 隱藏背景寫入錯誤，不干擾使用者體驗
+        return None
+
+def update_sheets_row(row_index, feedback=None, status=None, name=None, gender=None, phone=None, email=None, note=None):
+    """ 依據初次寫入時獲得的列號，精準更新同一行的指定欄位 """
+    if not row_index:
+        return
+    try:
+        creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
+        gc = gspread.service_account_from_dict(creds_dict)
+        sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
+        
+        # 欄位對應：D=feedback, E=status, F=name, G=gender, H=phone, I=email, J=note
+        if feedback is not None: sheet.update_cell(row_index, 4, feedback)
+        if status is not None:   sheet.update_cell(row_index, 5, status)
+        if name is not None:     sheet.update_cell(row_index, 6, name)
+        if gender is not None:   sheet.update_cell(row_index, 7, gender)
+        if phone is not None:    sheet.update_cell(row_index, 8, phone)
+        if email is not None:    sheet.update_cell(row_index, 9, email)
+        if note is not None:     sheet.update_cell(row_index, 10, note)
+    except Exception as e:
+        pass
 
 def send_line_message(message_text):
     try:
@@ -88,7 +112,7 @@ def send_line_message(message_text):
         pass
 
 # ==========================================
-# 4. 核心大腦設定 (⚖️ 融合官方手冊強制檢索與引用規範修正)
+# 4. 核心大腦設定 (⚖️ 融合官方手冊與強制直接引用規範)
 # ==========================================
 SYSTEM_PROMPT = """
 你是一位精通台灣勞動法令的「基隆市政府職場友善度健檢顧問」。
@@ -107,7 +131,7 @@ SYSTEM_PROMPT = """
 3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
 4. 🎯 精準鎖定法規與正名 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。【極度重要】原法規已修法更名，你在回覆中「絕對禁止」輸出舊稱「性別工作平等法」，請務必全面使用最新名稱「性別平等工作法」。絕對禁止為了湊字數跨界亂引法條。
 5. 🛑 絕對禁止捏造字號：在【法令分析】中，「絕對禁止」自行發明、拼湊或臆測任何具體的「函釋字號」、「文號」、「判決字號」或「發布日期」。除非你在上傳的 PDF 手冊中或大腦知識庫中確實查到該函釋字號，否則一律使用「依據主管機關相關函釋精神」或「依據實務見解」帶過。
-6. 🛡️ 寧缺勿濫原則：若民眾描述的情況過於模糊、或你完全無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確與寧缺勿濫，建議您直接向主管機關確認細節。」，絕對不允許強行猜測。
+6. 🛡️ 寧缺勿濫原則：若民眾描述的情況過於模糊、或你完全無法確定適用的法律條文，請坦承告知：「此情況較為複雜，為求正確與寧缺勿濫，建議您直接向主管機關確認細節。」，絕對不允許強行猜测。
 7. 官方結語與查證連結：在每一次回答的最末端，請固定附上以下內容（計入 500 字內）：
    ---
    📚 **官方查證資源：**
@@ -120,7 +144,7 @@ SYSTEM_PROMPT = """
 - 爭議點：公務機關技工、工友「考績獎金」是否計入平均工資？
 - 強制引用：行政院勞工委員會96年6月26日勞動2字第0960071251號函，不列入平均工資計算。
 - 爭議點：女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定？
-- 強制引用：勞動部105年2月3日勞動條4字第1040132621號函釋要旨如下：依性別平等工作法第14條規定，女性受僱者因生理日致工作有困難者，每月得請生理假一日。針對女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定，若經病史、基礎體溫或檢測血中荷爾蒙等適當醫學方法，合理判斷其仍有排卵功能，且於排卵日及原行經之日，仍因荷爾蒙變化而有身體不適致工作困難者，該症狀應屬「廣義生理日」之認定範圍，依法仍得請生理假。另重申，依現行性別平等工作法施行細則第13條規定，受僱者提出生理假申請時，無需提出證明文件。
+- 強制引用：勞動部105年2月3日勞動條4字第1040132621號函釋要旨如下：依性別平等工作法第14條規定，女性受僱者因生理日致工作有困難者，每月得請生理假一日。針對女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定，若經病史、基礎體溫或檢測血中荷爾婚等適當醫學方法，合理判斷其仍有排卵功能，且於排卵日及原行經之日，仍因荷爾蒙變化而有身體不適致工作困難者，該症狀應屬「廣義生理日」之認定範圍，依法仍得請生理假。另重申，依現行性別平等工作法細則第13條規定，受僱者提出生理假申請時，無需提出證明文件。
 
 【📖 黃金標準問答範例參考】
 【問題概述】您面臨的是通勤災害是否認定為職業災害的爭議。
@@ -133,7 +157,6 @@ SYSTEM_PROMPT = """
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
-# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 ---
 if "uploaded_files_to_gemini" not in st.session_state:
     files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_gemini_files = []
@@ -196,11 +219,11 @@ for message in st.session_state.chat_session.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# --- 處理使用者提問 (修正 Spinner 動態文字) ---
+# --- 處理使用者提問 (問完即刻寫入試算表同行) ---
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -208,7 +231,9 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                log_to_sheets_perfect(user_input, response.text)
+                # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
+                current_row = log_to_sheets_perfect(user_input, response.text, status="已回答")
+                st.session_state.current_row_index = current_row
                 
             except Exception as e:
                 error_msg = str(e)
@@ -220,43 +245,79 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
 # ==========================================
-# 6. 反饋互動與專人補充表單 
+# 6. 📝 滿意度評分（1-10分）與專人補充表單 (完美同行更新)
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
-    st.subheader("📝 您對分析滿意嗎？")
+    st.subheader("📝 您對本次分析滿意嗎？")
+    
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("👍 很有幫助"):
-            log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="滿意", status="結案")
-            st.success("感謝您的回饋！")
+        # 評分系統表單
+        with st.form("rating_form"):
+            st.markdown("**請給予滿意度評分**")
+            score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
+            if st.form_submit_button("送出評分"):
+                target_row = st.session_state.get("current_row_index")
+                if target_row:
+                    # 更新剛剛提問的那一行
+                    update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
+                    send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
+                    st.success(f"感謝您的回饋！您給予了 {score} 分。")
+                else:
+                    st.warning("⚠️ 寫入連線可能稍有延遲，請稍後再試。")
+            
     with col2:
-        if st.button("❓ 需專人補充回復"):
+        st.markdown("**需要進一步的專人協助嗎？**")
+        if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
+    # 專人服務表單區塊 (採同行欄位覆蓋更新)
     if st.session_state.get("show_expert_form", False):
+        st.markdown("---")
         with st.form("pro_contact"):
-            st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
+            st.info("請填寫聯繫資訊，基隆市政府法制及勞動處人員將於上班時間聯繫您。")
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             phone = st.text_input("聯絡電話")
-            email = st.text_input("Email 回復")
+            email = st.text_input("Email 回覆")
             note = st.text_area("其他備註說明")
             st.markdown("---")
             consent = st.checkbox("我同意基隆市政府依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
             
             if st.form_submit_button("送出申請"):
                 if not consent:
-                    st.error("⚠️ 請勾選同意個資聲明。")
-                elif not name or (contact_method == "電話回覆" and not phone) or (contact_method == "Email 回覆" and not email):
-                    st.error("請提供姓名與對應的聯繫方式。")
+                    st.error("⚠️ 請勾選同意個資聲明！")
+                elif not name:
+                    st.error("⚠️ 請填寫您的姓名/稱呼。")
+                elif contact_method == "電話回覆" and not phone:
+                    st.error("⚠️ 您選擇了「電話回覆」，請務必填寫聯絡電話。")
+                elif contact_method == "Email 回覆" and not email:
+                    st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
                 else:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
-                    final_note = f"【偏好：{contact_method}】\n{note}"
-                    log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, "需專人服務", "待處理", name, user_gender, phone, email, final_note)
-                    # LINE 推播
-                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}"
-                    send_line_message(notify_msg)
-                    st.success(f"{name} {title} 好，你的申請已送出！專人將儘速與你聯繫。")
-                    st.session_state.show_expert_form = False
+                    final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
+                    
+                    # 抓取對話階段生成的同一行列號進行覆蓋更新
+                    target_row = st.session_state.get("current_row_index")
+                    if target_row:
+                        update_sheets_row(
+                            target_row, 
+                            feedback="需專人服務", 
+                            status="待處理",
+                            name=name,
+                            gender=user_gender,
+                            phone=phone,
+                            email=email,
+                            note=final_note
+                        )
+                        
+                        # LINE 管理員推播通知
+                        notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
+                        send_line_message(notify_msg)
+                        
+                        st.success(f"{name} {title} 您好，您的申請已在同筆提問紀錄中完成更新！專人將儘速與您聯繫。")
+                        st.session_state.show_expert_form = False
+                    else:
+                        st.error("❌ 找不到對應的提問列，請重新整理網頁或稍後重試。")
