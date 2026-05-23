@@ -225,13 +225,11 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
 if "last_ai_reply" in st.session_state:
     st.divider()
     st.subheader("📝 您對分析滿意嗎？")
-    
     col1, col2 = st.columns(2)
     with col1:
         if st.button("👍 很有幫助"):
             log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, feedback="滿意", status="結案")
             st.success("感謝您的回饋！")
-            
     with col2:
         if st.button("❓ 需專人補充回復"):
             st.session_state.show_expert_form = True
@@ -239,52 +237,26 @@ if "last_ai_reply" in st.session_state:
     if st.session_state.get("show_expert_form", False):
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，人員將於上班時間聯繫您。")
-            
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
-            
-            # 🎯 新增：讓民眾選擇偏好的回覆方式
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
-            
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回復")
             note = st.text_area("其他備註說明")
-            
-            # 🎯 個資保護同意聲明
             st.markdown("---")
             consent = st.checkbox("我同意基隆市政府依《個人資料保護法》規定，蒐集、處理及利用上述個人資料，僅限於本次職場健檢諮詢與聯繫使用。")
             
             if st.form_submit_button("送出申請"):
-                # 🎯 嚴謹的欄位防呆檢查
                 if not consent:
-                    st.error("⚠️ 請勾選同意個資聲明，我們才能派專人為您服務喔！")
-                elif not name:
-                    st.error("請提供您的姓名或稱呼。")
-                elif contact_method == "電話回覆" and not phone:
-                    st.error("⚠️ 您選擇了「電話回覆」，請務必填寫聯絡電話。")
-                elif contact_method == "Email 回覆" and not email:
-                    st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
+                    st.error("⚠️ 請勾選同意個資聲明。")
+                elif not name or (contact_method == "電話回覆" and not phone) or (contact_method == "Email 回覆" and not email):
+                    st.error("請提供姓名與對應的聯繫方式。")
                 else:
-                    # 稱謂優化邏輯
-                    title = ""
-                    if user_gender == "男": title = "先生"
-                    elif user_gender == "女": title = "女士（小姐）"
-                    
-                    # 將回覆偏好整併進備註中，方便承辦人查看
-                    final_note = f"【希望以 {contact_method}】\n{note}" if note else f"【希望以 {contact_method}】"
-                    
-                    log_to_sheets_perfect(
-                        st.session_state.last_user_msg, 
-                        st.session_state.last_ai_reply, 
-                        feedback="需專人服務", 
-                        status="待處理",
-                        name=name,        
-                        gender=user_gender, 
-                        phone=phone,      
-                        email=email,      
-                        note=final_note   # 寫入包含回覆偏好的備註
-                    )
-                    
-                    # 🎯 客製化成功送出訊息
+                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
+                    final_note = f"【偏好：{contact_method}】\n{note}"
+                    log_to_sheets_perfect(st.session_state.last_user_msg, st.session_state.last_ai_reply, "需專人服務", "待處理", name, user_gender, phone, email, final_note)
+                    # LINE 推播
+                    notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}"
+                    send_line_message(notify_msg)
                     st.success(f"{name} {title} 好，你的申請已送出！專人將儘速與你聯繫。")
                     st.session_state.show_expert_form = False
