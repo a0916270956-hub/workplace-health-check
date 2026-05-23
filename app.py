@@ -24,7 +24,7 @@ except Exception as e:
 # 2. 🎯 模型選擇 (修正 404 錯誤)
 # ==========================================
 # 直接指定穩定且支援 File API 的最新版模型，避免 list_models 抓取到無效字串
-SELECTED_MODEL = "gemini-1.5-pro-latest"
+SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets) & LINE 通知
