@@ -13,6 +13,17 @@ import shutil
 # ==========================================
 # 1. 系統設定與 API 金鑰讀取
 # ==========================================
+st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
+
+st.markdown("""
+<style>
+    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
+    .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
+    h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
+    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
+</style>
+""", unsafe_allow_html=True)
+
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -21,10 +32,35 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 模型選擇 (全面修正 404 錯誤)
+# 2. 🎯 側邊欄與動態模型選擇 (終極解決 404 錯誤)
 # ==========================================
-# 這裡強制指定目前最穩定且權限全面開放的 1.5-flash 模型
-SELECTED_MODEL = "gemini-1.5-flash"
+with st.sidebar:
+    st.markdown("### 🏛️ 官方實用資源")
+    st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
+    st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
+    st.divider()
+    
+    st.markdown("### ⚙️ 系統進階設定")
+    st.markdown("若對話時發生 404 錯誤，請從下方選單切換您的金鑰所支援的模型：")
+    try:
+        # 動態抓取該 API Key 真正可以使用的模型清單
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if not available_models:
+            st.error("⚠️ 您的 API Key 無法存取任何可用的模型！請至 Google AI Studio 確認金鑰狀態。")
+            st.stop()
+            
+        # 預設優先選擇 1.5-flash 或 1.5-pro (避開 8b 輕量版)
+        default_index = 0
+        for i, m_name in enumerate(available_models):
+            if "gemini-1.5-flash" in m_name and "8b" not in m_name:
+                default_index = i
+                break
+                
+        SELECTED_MODEL = st.selectbox("請選擇 AI 模型", available_models, index=default_index)
+    except Exception as e:
+        st.error(f"讀取模型清單失敗：{e}")
+        SELECTED_MODEL = "models/gemini-1.5-flash" # 基礎備案
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets) & LINE 通知
@@ -38,7 +74,7 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         current_time = datetime.now(tw_tz).strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note])
     except Exception as e:
-        print(f"資料庫紀錄異常：{e}")
+        pass # 隱藏背景寫入錯誤，不干擾使用者體驗
 
 def send_line_message(message_text):
     try:
@@ -49,7 +85,7 @@ def send_line_message(message_text):
         data = {"to": admin_user_id, "messages": [{"type": "text", "text": message_text}]}
         requests.post(url, headers=headers, json=data)
     except Exception as e:
-        print(f"LINE 系統異常：{e}")
+        pass
 
 # ==========================================
 # 4. 核心大腦設定 (⚖️ 融合官方手冊強制檢索)
@@ -91,37 +127,9 @@ SYSTEM_PROMPT = """
 📚 **官方查證資源：** (略)」
 """
 
-try:
-    generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
-    model = genai.GenerativeModel(
-        model_name=SELECTED_MODEL,
-        system_instruction=SYSTEM_PROMPT,
-        generation_config=generation_config
-    )
-except Exception as e:
-    st.error(f"⚠️ 模型建立失敗：{e}")
-    st.stop()
-
 # ==========================================
 # 5. 網頁介面佈局與 📚 官方檔案載入機制
 # ==========================================
-st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
-
-st.markdown("""
-<style>
-    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
-    .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
-    h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
-    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-# 🎯 側邊欄：實用資源連結
-with st.sidebar:
-    st.markdown("### 🏛️ 官方實用資源")
-    st.markdown("[🔍 勞動部勞動法令查詢系統](https://laws.mol.gov.tw/)")
-    st.markdown("[📖 全國法規資料庫](https://law.moj.gov.tw/)")
-
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
@@ -148,23 +156,35 @@ if "uploaded_files_to_gemini" not in st.session_state:
                         
                     uploaded_gemini_files.append(gemini_file)
                 except Exception as e:
-                    print(f"檔案 {file_name} 上傳失敗：{e}")
                     st.warning(f"⚠️ {file_name} 載入程序異常，但系統仍可依照基本法理為您服務。")
             else:
                 st.warning(f"⚠️ 尚未在系統資料夾中偵測到「{file_name}」，請確認是否已成功上傳至 GitHub，目前將以基礎法理為您服務。")
                 
     st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
 
-# --- 初始化對話紀錄 ---
-if "chat_session" not in st.session_state:
-    initial_history = []
-    
-    if st.session_state.uploaded_files_to_gemini:
-        parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
-        initial_history.append({"role": "user", "parts": parts})
-        initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守手冊內容為市民解答。"]})
-    
-    st.session_state.chat_session = model.start_chat(history=initial_history)
+# --- 初始化或切換模型對話紀錄 ---
+# 當使用者從側邊欄切換模型時，自動重新建立對話
+if "chat_session" not in st.session_state or st.session_state.get("current_model_name") != SELECTED_MODEL:
+    try:
+        generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
+        model = genai.GenerativeModel(
+            model_name=SELECTED_MODEL,
+            system_instruction=SYSTEM_PROMPT,
+            generation_config=generation_config
+        )
+        
+        initial_history = []
+        if st.session_state.uploaded_files_to_gemini:
+            parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
+            initial_history.append({"role": "user", "parts": parts})
+            initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守手冊內容為市民解答。"]})
+        
+        st.session_state.chat_session = model.start_chat(history=initial_history)
+        st.session_state.current_model_name = SELECTED_MODEL
+        
+    except Exception as e:
+        st.error(f"⚠️ 模型初始化失敗：{e}")
+        st.stop()
 
 # --- 顯示歷史訊息 ---
 for message in st.session_state.chat_session.history:
@@ -196,7 +216,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 if "429" in error_msg:
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
                 elif "404" in error_msg:
-                    st.error("⚠️ 模型連線錯誤 (404)。請確認您的 requirements.txt 中是否有指定最新版套件：`google-generativeai>=0.8.2`。")
+                    st.error(f"⚠️ 模型連線錯誤 (404)。您的 API Key 可能不支援 `{SELECTED_MODEL}` 模型。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
                 else:
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
