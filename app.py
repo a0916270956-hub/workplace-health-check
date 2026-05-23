@@ -21,9 +21,9 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 模型選擇 (修正 404 錯誤)
+# 2. 🎯 模型選擇 (全面修正 404 錯誤)
 # ==========================================
-# 直接指定穩定且支援 File API 的最新版模型，避免 list_models 抓取到無效字串
+# 這裡強制指定目前最穩定且權限全面開放的 1.5-flash 模型
 SELECTED_MODEL = "gemini-1.5-flash"
 
 # ==========================================
@@ -103,7 +103,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 5. 網頁介面佈局與 📚 官方檔案載入機制 (終極防護版)
+# 5. 網頁介面佈局與 📚 官方檔案載入機制
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
@@ -125,19 +125,17 @@ with st.sidebar:
 st.title("⚖️ 工作場所融合度 AI 健檢系統")
 st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
-# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 (採用絕對路徑與嚴格攔截網) ---
+# --- 核心：PDF 檔案上傳至 Gemini 系統大腦 ---
 if "uploaded_files_to_gemini" not in st.session_state:
     files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_gemini_files = []
     
     with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
-        # 取得 app.py 當前所在的絕對資料夾路徑
         current_dir = os.path.dirname(os.path.abspath(__file__))
         
         for file_name in files_to_upload:
             file_path = os.path.join(current_dir, file_name)
             
-            # 🛡️ 雙重防護第一層：確定檔案真的存在才進行處理
             if os.path.exists(file_path):
                 try: 
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -198,7 +196,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 if "429" in error_msg:
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
                 elif "404" in error_msg:
-                    st.error("⚠️ 模型連線錯誤 (404)。請嘗試在程式碼第 28 行將 `gemini-1.5-pro-latest` 修改為 `gemini-1.5-flash` 再試一次。")
+                    st.error("⚠️ 模型連線錯誤 (404)。請確認您的 requirements.txt 中是否有指定最新版套件：`google-generativeai>=0.8.2`。")
                 else:
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
