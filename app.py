@@ -46,7 +46,7 @@ with st.sidebar:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
         if not available_models:
-            st.error("⚠️ 您的 API Key 無法存取 any 可用的模型！請至 Google AI Studio 確認金鑰狀態。")
+            st.error("⚠️ 您的 API Key 無法存取任何可用的模型！請至 Google AI Studio 確認金鑰狀態。")
             st.stop()
             
         default_index = 0
@@ -75,6 +75,7 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         row_data = [current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note]
         sheet.append_row(row_data)
         
+        # 取得剛才寫入的列號 (總行數即為當前寫入的列)
         return len(sheet.get_all_values())
     except Exception as e:
         return None
@@ -142,7 +143,7 @@ SYSTEM_PROMPT = """
 
 【💎 專屬法規知識庫 (精準打擊區)】
 - 爭議點：公務機關技工、工友「考績獎金」是否計入平均工資？
-- 強制引用：改制前行政院勞工委員會民國96年6月26日勞動2字第0960071251號函釋要旨考績獎金：公務機構依年終考核發給之考績獎金，並非勞動契約事先約定之給與，因其發放標準與對象均屬不確定，屬於勞工不可期待之報酬，故難認定為工資，可不計入平均工資。
+- 強制引用：改制前行政院勞工委員會民國96年6月26日勞動2字第0960071251號函釋要旨不列入平均工資計算。考績獎金：公務機構依年終考核發給之考績獎金，並非勞動契約事先約定之給與。因其發放標準與對象均屬不確定，屬於勞工不可期待之報酬，故難認定為工資，可不計入平均工資。
 - 爭議點：女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定？
 - 強制引用：勞動部民國105年2月3日勞動條4字第1040132621號函釋要旨如下：依性別平等工作法第14條規定，女性受僱者因生理日致工作有困難者，每月得請生理假一日。針對女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定，若經病史、基礎體溫或檢測血中荷爾蒙等適當醫學方法，合理判斷其仍有排卵功能，且於排卵日及原行經之日，仍因荷爾蒙變化而有身體不適致工作困難者，該症狀應屬「廣義生理日」之認定範圍，依法仍得請生理假。另重申，依現行性別平等工作法細則第13條規定，受僱者提出生理假申請時，無需提出證明文件。
 
@@ -152,35 +153,38 @@ SYSTEM_PROMPT = """
 """
 
 # ==========================================
-# 5. ⚡ 高速全域快取：官方檔案載入機制 (核心優化速度點)
+# 5. 網頁介面佈局與 📚 官方檔案載入機制
 # ==========================================
-@st.cache_resource(show_spinner=False)
-def get_cached_gemini_files():
-    """ 透過 Streamlit 快取機制，讓檔案在伺服器全域只上傳一次，大幅縮短民眾開啟網頁時間 """
-    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
-    uploaded_files = []
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    for file_name in files_to_upload:
-        file_path = os.path.join(current_dir, file_name)
-        if os.path.exists(file_path):
-            try: 
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    shutil.copyfile(file_path, tmp_file.name)
-                    gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
-                
-                # 縮短輪詢間隔至 0.5 秒，加快首次部署速度
-                while gemini_file.state.name == "PROCESSING":
-                    time.sleep(0.5)
-                    gemini_file = genai.get_file(gemini_file.name)
-                uploaded_files.append(gemini_file)
-            except:
-                pass
-    return uploaded_files
+st.title("⚖️ 工作場所融合度 AI 健檢系統")
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
 
-# 執行高速加載
-with st.spinner("⏳ 系統高速初始化中，請稍候..."):
-    global_gemini_files = get_cached_gemini_files()
+if "uploaded_files_to_gemini" not in st.session_state:
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
+    uploaded_gemini_files = []
+    
+    with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        for file_name in files_to_upload:
+            file_path = os.path.join(current_dir, file_name)
+            
+            if os.path.exists(file_path):
+                try: 
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                        shutil.copyfile(file_path, tmp_file.name)
+                        gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
+                        
+                    while gemini_file.state.name == "PROCESSING":
+                        time.sleep(2)
+                        gemini_file = genai.get_file(gemini_file.name)
+                        
+                    uploaded_gemini_files.append(gemini_file)
+                except Exception as e:
+                    st.warning(f"⚠️ {file_name} 載入程序異常，但系統仍可依照基本法理為您服務。")
+            else:
+                st.warning(f"⚠️ 尚未在系統資料夾中偵測到「{file_name}」，請確認是否已成功上傳至 GitHub，目前將以基礎法理為您服務。")
+                
+    st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
 
 # --- 初始化或切換模型對話紀錄 ---
 if "chat_session" not in st.session_state or st.session_state.get("current_model_name") != SELECTED_MODEL:
@@ -193,8 +197,8 @@ if "chat_session" not in st.session_state or st.session_state.get("current_model
         )
         
         initial_history = []
-        if global_gemini_files:
-            parts = global_gemini_files + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
+        if st.session_state.uploaded_files_to_gemini:
+            parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
             initial_history.append({"role": "user", "parts": parts})
             initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守法規發文日期與文號的引用規則，為市民解答。"]})
         
@@ -216,11 +220,11 @@ for message in st.session_state.chat_session.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# --- 處理使用者提問 ---
+# --- 處理使用者提問 (問完即刻寫入試算表同行) ---
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -228,7 +232,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 發問完即刻寫入新的一行
+                # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
@@ -250,12 +254,14 @@ if "last_ai_reply" in st.session_state:
     
     col1, col2 = st.columns(2)
     with col1:
+        # 評分系統表單
         with st.form("rating_form"):
             st.markdown("**請給予滿意度評分**")
             score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
             if st.form_submit_button("送出評分"):
                 target_row = st.session_state.get("current_row_index")
                 if target_row:
+                    # 更新 D欄（反饋評價）與 E欄（處理狀態）使其併存
                     update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
                     send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                     st.success(f"感謝您的回饋！您給予了 {score} 分。")
@@ -267,6 +273,7 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
+    # 專人服務表單區塊 (採同行欄位覆蓋更新，D欄與E欄各自獨立倂存)
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
@@ -293,8 +300,10 @@ if "last_ai_reply" in st.session_state:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
                     
+                    # 抓取對話階段生成的同一行列號進行覆蓋更新
                     target_row = st.session_state.get("current_row_index")
                     if target_row:
+                        # 更新同一行：D欄改為專人服務狀態，E欄調整為待處理，並補上其餘個資欄位
                         update_sheets_row(
                             target_row, 
                             feedback="需專人服務", 
@@ -306,6 +315,7 @@ if "last_ai_reply" in st.session_state:
                             note=final_note
                         )
                         
+                        # LINE 管理員推播通知
                         notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
                         send_line_message(notify_msg)
                         
