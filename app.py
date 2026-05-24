@@ -61,7 +61,7 @@ with st.sidebar:
         SELECTED_MODEL = "models/gemini-1.5-flash"
 
 # ==========================================
-# 3. 完美版寫入函數 (Google Sheets 同行寫入與更新機制)
+# 3. 完美版寫入函數 (Google Sheets 同行寫入與多欄位併存更新機制)
 # ==========================================
 def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", name="", gender="", phone="", email="", note=""):
     """ 負責初次寫入提問紀錄，並回傳該筆資料在 Google Sheets 的列號(Row Index) """
@@ -81,7 +81,7 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         return None
 
 def update_sheets_row(row_index, feedback=None, status=None, name=None, gender=None, phone=None, email=None, note=None):
-    """ 依據初次寫入時獲得的列號，精準更新同一行的指定欄位 """
+    """ 依據初次寫入時獲得的列號，精準更新同一行的指定欄位，支援多個欄位同時併存 """
     if not row_index:
         return
     try:
@@ -89,7 +89,7 @@ def update_sheets_row(row_index, feedback=None, status=None, name=None, gender=N
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
         
-        # 欄位對應：D=feedback, E=status, F=name, G=gender, H=phone, I=email, J=note
+        # 欄位對應：D=feedback(4), E=status(5), F=name(6), G=gender(7), H=phone(8), I=email(9), J=note(10)
         if feedback is not None: sheet.update_cell(row_index, 4, feedback)
         if status is not None:   sheet.update_cell(row_index, 5, status)
         if name is not None:     sheet.update_cell(row_index, 6, name)
@@ -124,6 +124,7 @@ SYSTEM_PROMPT = """
 【🚨 函釋與法規引用強制規則（核心指令）】
 1. 當你需要引用《114年勞動基準法規彙編》或《職場工作平權宣導手冊》內收錄的行政解釋、函釋或實務見解時，請「直接完整引用發文機關、發文日期、發文字號及函釋重點」。
 2. 【絕對禁止】在回答中使用頁碼或書籍排版式的糢糊指引。例如，絕對不能回覆類似於：「參照勞動基準法規彙編第403頁『勞工下班未直接返家……』」這樣的格式。你必須將其轉化為具體的機關文號與核心法理。
+3. 【歷史機關正名要求】引用歷史函釋或舊公文時，若發文單位為行政院勞工委員會，你在輸出時「必須一律寫為：改制前行政院勞工委員會」；若發文單位為內政部，且屬於處理勞工事務時期，則「必須一律寫為：內政部主管勞工事務時期」。
 
 【🚨 防幻想與字數限制原則】
 1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
@@ -142,13 +143,13 @@ SYSTEM_PROMPT = """
 
 【💎 專屬法規知識庫 (精準打擊區)】
 - 爭議點：公務機關技工、工友「考績獎金」是否計入平均工資？
-- 強制引用：行政院勞工委員會96年6月26日勞動2字第0960071251號函，不列入平均工資計算。
+- 強制引用：改制前行政院勞工委員會民國96年6月26日勞動2字第0960071251號函，不列入平均工資計算。
 - 爭議點：女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定？
-- 強制引用：勞動部105年2月3日勞動條4字第1040132621號函釋要旨如下：依性別平等工作法第14條規定，女性受僱者因生理日致工作有困難者，每月得請生理假一日。針對女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定，若經病史、基礎體溫或檢測血中荷爾婚等適當醫學方法，合理判斷其仍有排卵功能，且於排卵日及原行經之日，仍因荷爾蒙變化而有身體不適致工作困難者，該症狀應屬「廣義生理日」之認定範圍，依法仍得請生理假。另重申，依現行性別平等工作法細則第13條規定，受僱者提出生理假申請時，無需提出證明文件。
+- 強制引用：勞動部民國105年2月3日勞動條4字第1040132621號函釋要旨如下：依性別平等工作法第14條規定，女性受僱者因生理日致工作有困難者，每月得請生理假一日。針對女性勞動者因病切除子宮及卵巢（或切除兩者之一）之生理假認定，若經病史、基礎體溫或檢測血中荷爾蒙等適當醫學方法，合理判斷其仍有排卵功能，且於排卵日及原行經之日，仍因荷爾蒙變化而有身體不適致工作困難者，該症狀應屬「廣義生理日」之認定範圍，依法仍得請生理假。另重申，依現行性別平等工作法細則第13條規定，受僱者提出生理假申請時，無需提出證明文件。
 
 【📖 黃金標準問答範例參考】
 【問題概述】您面臨的是通勤災害是否認定為職業災害的爭議。
-【法令分析】依據行政院勞工委員會（現勞動部）中華民國75年6月23日台內勞字第410301號函釋意旨，勞工於上下班途中，若於適當時間，以適當交通方法，自住宅往返就業場所之轉赴途中發生車禍，其非因故意或重大過失所致者，應屬職業災害。然而，若勞工下班後未直接返家，而是從事與日常居住生活無正當關聯之行為而偏離常軌發生車禍，則難以認定為職業災害。
+【法令分析】依據改制前行政院勞工委員會（現勞動部）中華民國75年6月23日台內勞字第410301號函釋意旨，勞工於上下班途中，若於適當時間，以適當交通方法，自住宅往返就業場所之轉赴途中發生車禍，其非因故意或重大過失所致者，應屬職業災害。然而，若勞工下班後未直接返家，而是從事與日常居住生活無正當關聯之行為而偏離常軌發生車禍，則難以認定為職業災害。
 """
 
 # ==========================================
@@ -232,7 +233,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_ai_reply = response.text
                 
                 # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
-                current_row = log_to_sheets_perfect(user_input, response.text, status="已回答")
+                current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
             except Exception as e:
@@ -245,7 +246,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
 # ==========================================
-# 6. 📝 滿意度評分（1-10分）與專人補充表單 (完美同行更新)
+# 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單 (完美同行併存更新)
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -260,7 +261,7 @@ if "last_ai_reply" in st.session_state:
             if st.form_submit_button("送出評分"):
                 target_row = st.session_state.get("current_row_index")
                 if target_row:
-                    # 更新剛剛提問的那一行
+                    # 更新 D欄（反饋評價）與 E欄（處理狀態）使其併存
                     update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
                     send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                     st.success(f"感謝您的回饋！您給予了 {score} 分。")
@@ -272,13 +273,13 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
-    # 專人服務表單區塊 (採同行欄位覆蓋更新)
+    # 專人服務表單區塊 (採同行欄位覆蓋更新，D欄與E欄各自獨立倂存)
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
             st.info("請填寫聯繫資訊，基隆市政府法制及勞動處人員將於上班時間聯繫您。")
             name = st.text_input("您的姓名/稱呼")
-            user_gender = st.radio("您的性別", ["男", "女", "其他"], horizontal=True)
+            user_gender = st.radio("您的性別", ["男", "女", "官方不便透露"], horizontal=True)
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
             phone = st.text_input("聯絡電話")
             email = st.text_input("Email 回覆")
@@ -302,6 +303,7 @@ if "last_ai_reply" in st.session_state:
                     # 抓取對話階段生成的同一行列號進行覆蓋更新
                     target_row = st.session_state.get("current_row_index")
                     if target_row:
+                        # 更新同一行：D欄改為專人服務狀態，E欄調整為待處理，並補上其餘個資欄位
                         update_sheets_row(
                             target_row, 
                             feedback="需專人服務", 
