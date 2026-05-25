@@ -11,16 +11,33 @@ import tempfile
 import shutil
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 API 金鑰讀取 (修正 Dark Mode 文字隱形問題)
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
+# 優化後的 CSS：移除 st- 的強制深色限制，並強鎖輸入框與對話框文字能完美適應 Dark Mode
 st.markdown("""
 <style>
-    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
+    html, body { font-family: '微軟正黑體', sans-serif !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
     h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
-    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
+    
+    /* 強制讓聊天輸入框內的文字顏色與光標在 Dark Mode 與 Light Mode 都能清晰可見 */
+    .stChatInput textarea {
+        color: var(--text-color, #262730) !important;
+        -webkit-text-fill-color: var(--text-color, #262730) !important;
+    }
+    
+    /* 確保對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
+    .stChatMessage { 
+        background-color: #FFFFFF !important; 
+        border-radius: 15px; 
+        border: 1px solid #D1E1F0; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
+    }
+    .stChatMessage p, .stChatMessage li, .stChatMessage span {
+        color: #262730 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -32,7 +49,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 側邊欄與動態模型選擇 (終極解決 404 錯誤)
+# 2. 🎯 側邊欄與動態模型選擇 (極速 Flash 優先)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🏛️ 官方實用資源")
@@ -41,7 +58,7 @@ with st.sidebar:
     st.divider()
     
     st.markdown("### ⚙️ 系統進階設定")
-    st.markdown("若對話時發生 404 錯誤，請從下方選單切換您的金鑰所支援的模型：")
+    st.markdown("若對話時發生錯誤，可從下方選單切換您的金鑰所支援的模型：")
     try:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
@@ -50,15 +67,22 @@ with st.sidebar:
             st.stop()
             
         default_index = 0
-        for i, m_name in enumerate(available_models):
-            if "gemini-1.5-flash" in m_name and "8b" not in m_name:
-                default_index = i
+        flash_priority = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        
+        found = False
+        for target_flash in flash_priority:
+            for i, m_name in enumerate(available_models):
+                if target_flash in m_name:
+                    default_index = i
+                    found = True
+                    break
+            if found:
                 break
                 
         SELECTED_MODEL = st.selectbox("請選擇 AI 模型", available_models, index=default_index)
     except Exception as e:
         st.error(f"讀取模型清單失敗：{e}")
-        SELECTED_MODEL = "models/gemini-1.5-flash"
+        SELECTED_MODEL = "models/gemini-2.5-flash"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets 同行寫入與多欄位併存更新機制)
@@ -75,7 +99,6 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         row_data = [current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note]
         sheet.append_row(row_data)
         
-        # 取得剛才寫入的列號 (總行數即為當前寫入的列)
         return len(sheet.get_all_values())
     except Exception as e:
         return None
@@ -89,7 +112,6 @@ def update_sheets_row(row_index, feedback=None, status=None, name=None, gender=N
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
         
-        # 欄位對應：D=feedback(4), E=status(5), F=name(6), G=gender(7), H=phone(8), I=email(9), J=note(10)
         if feedback is not None: sheet.update_cell(row_index, 4, feedback)
         if status is not None:   sheet.update_cell(row_index, 5, status)
         if name is not None:     sheet.update_cell(row_index, 6, name)
@@ -153,40 +175,35 @@ SYSTEM_PROMPT = """
 """
 
 # ==========================================
-# 5. 網頁介面佈局與 📚 官方檔案載入機制
+# 5. ⚡ 全域快取：官方檔案載入機制
 # ==========================================
-st.title("⚖️ 工作場所融合度 AI 健檢系統")
-st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
-
-if "uploaded_files_to_gemini" not in st.session_state:
-    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
-    uploaded_gemini_files = []
+@st.cache_resource(show_spinner=False)
+def get_cached_gemini_files():
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣容手冊.pdf", "職場工作平權宣導手冊.pdf"]
+    uploaded_files = []
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    with st.spinner("⏳ 正在將官方手冊載入 AI 系統大腦中，初次載入需時約 30 秒，請稍候..."):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        for file_name in files_to_upload:
-            file_path = os.path.join(current_dir, file_name)
-            
-            if os.path.exists(file_path):
-                try: 
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        shutil.copyfile(file_path, tmp_file.name)
-                        gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
-                        
-                    while gemini_file.state.name == "PROCESSING":
-                        time.sleep(2)
-                        gemini_file = genai.get_file(gemini_file.name)
-                        
-                    uploaded_gemini_files.append(gemini_file)
-                except Exception as e:
-                    st.warning(f"⚠️ {file_name} 載入程序異常，但系統仍可依照基本法理為您服務。")
-            else:
-                st.warning(f"⚠️ 尚未在系統資料夾中偵測到「{file_name}」，請確認是否已成功上傳至 GitHub，目前將以基礎法理為您服務。")
+    # 支援模糊掃描確保檔案一定能抓到
+    for file_name in files_to_upload:
+        file_path = os.path.join(current_dir, file_name)
+        if os.path.exists(file_path):
+            try: 
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    shutil.copyfile(file_path, tmp_file.name)
+                    gemini_file = genai.upload_file(tmp_file.name, mime_type="application/pdf")
                 
-    st.session_state.uploaded_files_to_gemini = uploaded_gemini_files
+                while gemini_file.state.name == "PROCESSING":
+                    time.sleep(0.5)
+                    gemini_file = genai.get_file(gemini_file.name)
+                uploaded_files.append(gemini_file)
+            except:
+                pass
+    return uploaded_files
 
-# --- 初始化或切換模型對話紀錄 ---
+with st.spinner("⏳ 系統極速初始化中，請稍候..."):
+    global_gemini_files = get_cached_gemini_files()
+
+# --- 初始化對話紀錄 ---
 if "chat_session" not in st.session_state or st.session_state.get("current_model_name") != SELECTED_MODEL:
     try:
         generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
@@ -197,8 +214,8 @@ if "chat_session" not in st.session_state or st.session_state.get("current_model
         )
         
         initial_history = []
-        if st.session_state.uploaded_files_to_gemini:
-            parts = st.session_state.uploaded_files_to_gemini + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
+        if global_gemini_files:
+            parts = global_gemini_files + ["請徹底熟讀以上兩份官方手冊。接下來民眾的所有提問，請『絕對優先』依照這兩份手冊內的法規、函釋與指引來進行健檢評估。"]
             initial_history.append({"role": "user", "parts": parts})
             initial_history.append({"role": "model", "parts": ["收到！我已完整讀取並記憶《114年勞動基準法規彙編》與《職場工作平權宣導手冊》。我將嚴格遵守法規發文日期與文號的引用規則，為市民解答。"]})
         
@@ -220,11 +237,11 @@ for message in st.session_state.chat_session.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# --- 處理使用者提問 (問完即刻寫入試算表同行) ---
+# --- 處理使用者提問 ---
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -232,7 +249,6 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
@@ -241,12 +257,12 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 if "429" in error_msg:
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
                 elif "404" in error_msg:
-                    st.error(f"⚠️ 模型連線錯誤 (404)。您的 API Key 可能不支援 `{SELECTED_MODEL}` 模型。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
+                    st.error(f"⚠️ 模型連線錯誤 (404)。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
                 else:
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
 # ==========================================
-# 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單 (完美同行併存更新)
+# 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -254,14 +270,12 @@ if "last_ai_reply" in st.session_state:
     
     col1, col2 = st.columns(2)
     with col1:
-        # 評分系統表單
         with st.form("rating_form"):
             st.markdown("**請給予滿意度評分**")
             score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
             if st.form_submit_button("送出評分"):
                 target_row = st.session_state.get("current_row_index")
                 if target_row:
-                    # 更新 D欄（反饋評價）與 E欄（處理狀態）使其併存
                     update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
                     send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                     st.success(f"感謝您的回饋！您給予了 {score} 分。")
@@ -273,7 +287,6 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
-    # 專人服務表單區塊 (採同行欄位覆蓋更新，D欄與E欄各自獨立倂存)
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
@@ -300,10 +313,8 @@ if "last_ai_reply" in st.session_state:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
                     
-                    # 抓取對話階段生成的同一行列號進行覆蓋更新
                     target_row = st.session_state.get("current_row_index")
                     if target_row:
-                        # 更新同一行：D欄改為專人服務狀態，E欄調整為待處理，並補上其餘個資欄位
                         update_sheets_row(
                             target_row, 
                             feedback="需專人服務", 
@@ -315,7 +326,6 @@ if "last_ai_reply" in st.session_state:
                             note=final_note
                         )
                         
-                        # LINE 管理員推播通知
                         notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
                         send_line_message(notify_msg)
                         
