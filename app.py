@@ -11,31 +11,39 @@ import tempfile
 import shutil
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取 (修正 Dark Mode 文字隱形問題)
+# 1. 系統設定與 API 金鑰讀取 (終極解決 Dark Mode 字體隱形問題)
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
-# 優化後的 CSS：移除 st- 的強制深色限制，並強鎖輸入框與對話框文字能完美適應 Dark Mode
+# 升級版全自動適應 CSS：精準控制對話框與聊天輸入框在深色模式(Dark Mode)下的外觀
 st.markdown("""
 <style>
     html, body { font-family: '微軟正黑體', sans-serif !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
     h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
     
-    /* 強制讓聊天輸入框內的文字顏色與光標在 Dark Mode 與 Light Mode 都能清晰可見 */
-    .stChatInput textarea {
+    /* === 核心修正：讓聊天輸入框文字、提示字、游標在任何模式下均清晰可見 === */
+    .stChatInput p, .stChatInput textarea {
         color: var(--text-color, #262730) !important;
         -webkit-text-fill-color: var(--text-color, #262730) !important;
+        caret-color: var(--text-color, #262730) !important; /* 確保游標閃爍可見 */
     }
     
-    /* 確保對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
+    /* 修正深色模式下輸入框預設提示字的顏色 */
+    .stChatInput textarea::placeholder {
+        color: #888888 !important;
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
+    }
+    
+    /* 確保歷史對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
     .stChatMessage { 
         background-color: #FFFFFF !important; 
         border-radius: 15px; 
         border: 1px solid #D1E1F0; 
         box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
     }
-    .stChatMessage p, .stChatMessage li, .stChatMessage span {
+    .stChatMessage p, .stChatMessage li, .stChatMessage span, .stChatMessage div {
         color: #262730 !important;
     }
 </style>
@@ -112,6 +120,7 @@ def update_sheets_row(row_index, feedback=None, status=None, name=None, gender=N
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open("職場健檢_民眾提問紀錄").sheet1
         
+        # 欄位對應：D=feedback(4), E=status(5), F=name(6), G=gender(7), H=phone(8), I=email(9), J=note(10)
         if feedback is not None: sheet.update_cell(row_index, 4, feedback)
         if status is not None:   sheet.update_cell(row_index, 5, status)
         if name is not None:     sheet.update_cell(row_index, 6, name)
@@ -175,15 +184,14 @@ SYSTEM_PROMPT = """
 """
 
 # ==========================================
-# 5. ⚡ 全域快取：官方檔案載入機制
+# 5. ⚡ 全域快取：官方檔案載入機制 (極速秒開網頁)
 # ==========================================
 @st.cache_resource(show_spinner=False)
 def get_cached_gemini_files():
-    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣容手冊.pdf", "職場工作平權宣導手冊.pdf"]
+    files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_files = []
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 支援模糊掃描確保檔案一定能抓到
     for file_name in files_to_upload:
         file_path = os.path.join(current_dir, file_name)
         if os.path.exists(file_path):
@@ -200,10 +208,11 @@ def get_cached_gemini_files():
                 pass
     return uploaded_files
 
+# 執行高速初始化
 with st.spinner("⏳ 系統極速初始化中，請稍候..."):
     global_gemini_files = get_cached_gemini_files()
 
-# --- 初始化對話紀錄 ---
+# --- 初始化或切換模型對話紀錄 ---
 if "chat_session" not in st.session_state or st.session_state.get("current_model_name") != SELECTED_MODEL:
     try:
         generation_config = genai.GenerationConfig(temperature=0.0, top_p=0.8)
@@ -237,7 +246,7 @@ for message in st.session_state.chat_session.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# --- 處理使用者提問 ---
+# --- 處理使用者提問 (問完即刻寫入試算表同行) ---
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
@@ -249,6 +258,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
+                # 發問完即刻寫入新的一行
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
@@ -257,12 +267,12 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 if "429" in error_msg:
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
                 elif "404" in error_msg:
-                    st.error(f"⚠️ 模型連線錯誤 (404)。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
+                    st.error(f"⚠️ 模型連線錯誤 (404)。您的 API Key 可能不支援 `{SELECTED_MODEL}` 模型。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
                 else:
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
 # ==========================================
-# 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單
+# 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單 (完美同行併存更新)
 # ==========================================
 if "last_ai_reply" in st.session_state:
     st.divider()
@@ -270,12 +280,14 @@ if "last_ai_reply" in st.session_state:
     
     col1, col2 = st.columns(2)
     with col1:
+        # 評分系統表單
         with st.form("rating_form"):
             st.markdown("**請給予滿意度評分**")
             score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
             if st.form_submit_button("送出評分"):
                 target_row = st.session_state.get("current_row_index")
                 if target_row:
+                    # 更新 D欄（反饋評價）與 E欄（處理狀態）使其併存
                     update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
                     send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                     st.success(f"感謝您的回饋！您給予了 {score} 分。")
@@ -287,6 +299,7 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
+    # 專人服務表單區塊 (採同行欄位覆蓋更新，D欄與E欄各自獨立倂存)
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
@@ -313,8 +326,10 @@ if "last_ai_reply" in st.session_state:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
                     
+                    # 抓取對話階段生成的同一行列號進行覆蓋更新
                     target_row = st.session_state.get("current_row_index")
                     if target_row:
+                        # 更新同一行：D欄改為專人服務狀態，E欄調整為待處理，並補上其餘個資欄位
                         update_sheets_row(
                             target_row, 
                             feedback="需專人服務", 
@@ -326,6 +341,7 @@ if "last_ai_reply" in st.session_state:
                             note=final_note
                         )
                         
+                        # LINE 管理員推播通知
                         notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
                         send_line_message(notify_msg)
                         
