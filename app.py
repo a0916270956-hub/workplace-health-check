@@ -11,41 +11,16 @@ import tempfile
 import shutil
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取 (終極解決 Dark Mode 字體隱形問題)
+# 1. 系統設定與 API 金鑰讀取
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
-# 升級版全自動適應 CSS：精準控制對話框與聊天輸入框在深色模式(Dark Mode)下的外觀
 st.markdown("""
 <style>
-    html, body { font-family: '微軟正黑體', sans-serif !important; }
+    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
     h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
-    
-    /* === 核心修正：讓聊天輸入框文字、提示字、游標在任何模式下均清晰可見 === */
-    .stChatInput p, .stChatInput textarea {
-        color: var(--text-color, #262730) !important;
-        -webkit-text-fill-color: var(--text-color, #262730) !important;
-        caret-color: var(--text-color, #262730) !important; /* 確保游標閃爍可見 */
-    }
-    
-    /* 修正深色模式下輸入框預設提示字的顏色 */
-    .stChatInput textarea::placeholder {
-        color: #888888 !important;
-        -webkit-text-fill-color: #888888 !important;
-        opacity: 1 !important;
-    }
-    
-    /* 確保歷史對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
-    .stChatMessage { 
-        background-color: #FFFFFF !important; 
-        border-radius: 15px; 
-        border: 1px solid #D1E1F0; 
-        box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
-    }
-    .stChatMessage p, .stChatMessage li, .stChatMessage span, .stChatMessage div {
-        color: #262730 !important;
-    }
+    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,7 +32,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 🎯 側邊欄與動態模型選擇 (極速 Flash 優先)
+# 2. 🎯 側邊欄與動態模型選擇 (極速 Flash 優先排列)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🏛️ 官方實用資源")
@@ -74,6 +49,7 @@ with st.sidebar:
             st.error("⚠️ 您的 API Key 無法存取任何可用的模型！請至 Google AI Studio 確認金鑰狀態。")
             st.stop()
             
+        # 尋找最新的高速 Flash 模型 (優先順序：2.5-flash -> 2.0-flash -> 1.5-flash)
         default_index = 0
         flash_priority = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         
@@ -87,10 +63,10 @@ with st.sidebar:
             if found:
                 break
                 
-        SELECTED_MODEL = st.selectbox("請選擇 AI 模型", available_models, index=default_index)
+        SELECTED_MODEL = st.selectbox("請選擇 AI 模型 (已自動為您預設極速 Flash 模型)", available_models, index=default_index)
     except Exception as e:
         st.error(f"讀取模型清單失敗：{e}")
-        SELECTED_MODEL = "models/gemini-2.5-flash"
+        SELECTED_MODEL = "models/gemini-2.5-flash" # 最新高速預設案
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets 同行寫入與多欄位併存更新機制)
@@ -107,6 +83,7 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         row_data = [current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note]
         sheet.append_row(row_data)
         
+        # 取得剛才寫入的列號 (總行數即為當前寫入的列)
         return len(sheet.get_all_values())
     except Exception as e:
         return None
@@ -153,7 +130,7 @@ SYSTEM_PROMPT = """
 當民眾提問時，你必須「優先且絕對」從這兩份官方檔案中搜尋相關條文、函釋與指引來回答。
 
 【🚨 函釋與法規引用強制規則（核心指令）】
-1. 當你需要引用《114年勞動基準法規彙編》或《職場工作平權宣導手冊》內收錄的行政解釋、函釋或實務見解時，請「直接完整引用發文機關、發文日期、發文字號及函釋重點」。
+1. 當你需要引用《114年勞動基準法規彙編》或《職場工作平權宣導手冊》內收錄的行政解释、函釋或實務見解時，請「直接完整引用發文機關、發文日期、發文字號及函釋重點」。
 2. 【絕對禁止】在回答中使用頁碼或書籍排版式的糢糊指引。例如，絕對不能回覆類似於：「參照勞動基準法規彙編第403頁『勞工下班未直接返家……』」這樣的格式。你必須將其轉化為具體的機關文號與核心法理。
 3. 【歷史機關正名要求】引用歷史函釋或舊公文時，若發文單位為行政院勞工委員會，你在輸出時「必須一律寫為：改制前行政院勞工委員會」；若發文單位為內政部，且屬於處理勞工事務時期，則「必須一律寫為：內政部主管勞工事務時期」。
 
@@ -188,6 +165,7 @@ SYSTEM_PROMPT = """
 # ==========================================
 @st.cache_resource(show_spinner=False)
 def get_cached_gemini_files():
+    """ 透過快取，使知識庫在伺服器全域僅需加載一次 """
     files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_files = []
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -250,7 +228,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -258,7 +236,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 發問完即刻寫入新的一行
+                # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
