@@ -11,11 +11,11 @@ import tempfile
 import shutil
 
 # ==========================================
-# 1. 系統設定與 API 金鑰讀取
+# 1. 系統設定與 API 金鑰讀取 (終極解決明暗模式輸入框色彩衝突問題)
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
-# 終極版全自動適應 CSS：移除導致文字變黑的強制設定，改用標準 CSS 變數全面防禦 Dark Mode 隱形問題
+# 終極標準化網頁主題適應 CSS
 st.markdown("""
 <style>
     html, body { font-family: '微軟正黑體', sans-serif !important; }
@@ -32,21 +32,38 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* === 核心修正：強制輸入框文字與光標在明亮/深色模式下都清晰可見 === */
-    .stChatInput p, .stChatInput textarea {
-        color: var(--text-color, #262730) !important;
-        -webkit-text-fill-color: var(--text-color, #262730) !important;
-        caret-color: var(--text-color, #262730) !important; /* 確保游標閃爍可見 */
+    /* === 1. 明亮模式 (Light Mode) 基礎設定 === */
+    @media (prefers-color-scheme: light) {
+        .stChatInput textarea {
+            background-color: #FFFFFF !important;
+            color: #262730 !important;
+            -webkit-text-fill-color: #262730 !important;
+            caret-color: #262730 !important;
+        }
+        .stChatInput textarea::placeholder {
+            color: #888888 !important;
+            -webkit-text-fill-color: #888888 !important;
+        }
     }
     
-    /* 修正深色模式下輸入框預設提示字(Placeholder)的顏色 */
-    .stChatInput textarea::placeholder {
-        color: #888888 !important;
-        -webkit-text-fill-color: #888888 !important;
-        opacity: 1 !important;
+    /* === 2. 深色模式 (Dark Mode) 終極覆蓋：強制深底白字，絕不允許變白隱形 === */
+    @media (prefers-color-scheme: dark) {
+        /* 強制將輸入區塊的外殼與本體填入深色背景 */
+        .stChatInput, .stChatInput div, .stChatInput textarea {
+            background-color: #1E1E1E !important;
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+            caret-color: #FFFFFF !important; /* 游標強制為白色 */
+        }
+        /* 修正深色模式下的輸入提示字 */
+        .stChatInput textarea::placeholder {
+            color: #B0B0B0 !important;
+            -webkit-text-fill-color: #B0B0B0 !important;
+            opacity: 1 !important;
+        }
     }
     
-    /* 確保歷史對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
+    /* === 3. 歷史對話紀錄框：一律維持舒適明亮的白底黑字風格 === */
     .stChatMessage { 
         background-color: #FFFFFF !important; 
         border-radius: 15px; 
@@ -84,7 +101,6 @@ with st.sidebar:
             st.error("⚠️ 您的 API Key 無法存取任何可用的模型！請至 Google AI Studio 確認金鑰狀態。")
             st.stop()
             
-        # 尋找最新的高速 Flash 模型 (優先順序：2.5-flash -> 2.0-flash -> 1.5-flash)
         default_index = 0
         flash_priority = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         
@@ -164,7 +180,7 @@ SYSTEM_PROMPT = """
 當民眾提問時，你必須「優先且絕對」從這兩份官方檔案中搜尋相關條文、函釋與指引來回答。
 
 【🚨 函釋與法規引用強制規則（核心指令）】
-1. 當你需要引用《114年勞動基準法規彙編》或《職場工作平權宣導手冊》內收錄的行政解释、函釋或實務見解時，請「直接完整引用發文機關、發文日期、發文字號及函釋重點」。
+1. 當你需要引用《114年勞動基準法規彙編》或《職場工作平權宣導手冊》內收錄之行政解釋、函釋或實務見解時，請「直接完整引用發文機關、發文日期、發文字號及函釋重點」。
 2. 【絕對禁止】在回答中使用頁碼或書籍排版式的糢糊指引。例如，絕對不能回覆類似於：「參照勞動基準法規彙編第403頁『勞工下班未直接返家……』」這樣的格式。你必須將其轉化為具體的機關文號與核心法理。
 3. 【歷史機關正名要求】引用歷史函釋或舊公文時，若發文單位為行政院勞工委員會，你在輸出時「必須一律寫為：改制前行政院勞工委員會」；若發文單位為內政部，且屬於處理勞工事務時期，則「必須一律寫為：內政部主管勞工事務時期」。
 
@@ -195,7 +211,7 @@ SYSTEM_PROMPT = """
 """
 
 # ==========================================
-# 5. ⚡ 全域快取：官方檔案載入機制 (極速秒開網頁)
+# 5. ⚡ 全域快取：官方檔案載入機制
 # ==========================================
 @st.cache_resource(show_spinner=False)
 def get_cached_gemini_files():
@@ -219,7 +235,6 @@ def get_cached_gemini_files():
                 pass
     return uploaded_files
 
-# 執行高速初始化
 with st.spinner("⏳ 系統極速初始化中，請稍候..."):
     global_gemini_files = get_cached_gemini_files()
 
@@ -247,7 +262,7 @@ if "chat_session" not in st.session_state or st.session_state.get("current_model
         st.stop()
 
 # ==========================================
-# 🛑 UI 佈局區：渲染標題與歷史訊息 (修正標題不見問題)
+# 🛑 UI 佈局區：渲染標題與歷史訊息
 # ==========================================
 st.markdown('<div class="main-title">⚖️ 工作場所融合度 AI 健檢系統</div>', unsafe_allow_html=True)
 st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
@@ -267,7 +282,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -275,7 +290,6 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 發問完即刻寫入新的一行
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
@@ -284,7 +298,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 if "429" in error_msg:
                     st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
                 elif "404" in error_msg:
-                    st.error(f"⚠️ 模型連線錯誤 (404)。您的 API Key 可能不支援 `{SELECTED_MODEL}` 模型。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
+                    st.error(f"⚠️ 模型連線錯誤 (404)。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
                 else:
                     st.error(f"⚠️ 連線錯誤：{error_msg}")
 
@@ -297,14 +311,12 @@ if "last_ai_reply" in st.session_state:
     
     col1, col2 = st.columns(2)
     with col1:
-        # 評分系統表單
         with st.form("rating_form"):
             st.markdown("**請給予滿意度評分**")
             score = st.slider("(1分為最不滿意，10分為非常滿意)", min_value=1, max_value=10, value=10)
             if st.form_submit_button("送出評分"):
                 target_row = st.session_state.get("current_row_index")
                 if target_row:
-                    # 更新 D欄（反饋評價）與 E欄（處理狀態）使其併存
                     update_sheets_row(target_row, feedback=f"評分：{score}分", status="結案")
                     send_line_message(f"📊【滿意度評分回饋】\n系統收到新評分：{score} 分！")
                     st.success(f"感謝您的回饋！您給予了 {score} 分。")
@@ -316,7 +328,6 @@ if "last_ai_reply" in st.session_state:
         if st.button("❓ 填寫專人服務表單"):
             st.session_state.show_expert_form = True
 
-    # 專人服務表單區塊 (採同行欄位覆蓋更新，D欄與E欄各自獨立倂存)
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
@@ -343,10 +354,8 @@ if "last_ai_reply" in st.session_state:
                     title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
                     final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
                     
-                    # 抓取對話階段生成的同一行列號進行覆蓋更新
                     target_row = st.session_state.get("current_row_index")
                     if target_row:
-                        # 更新同一行：D欄改為專人服務狀態，E欄調整為待處理，並補上其餘個資欄位
                         update_sheets_row(
                             target_row, 
                             feedback="需專人服務", 
@@ -358,7 +367,6 @@ if "last_ai_reply" in st.session_state:
                             note=final_note
                         )
                         
-                        # LINE 管理員推播通知
                         notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
                         send_line_message(notify_msg)
                         
