@@ -228,7 +228,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
