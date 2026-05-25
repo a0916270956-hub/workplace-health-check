@@ -15,12 +15,47 @@ import shutil
 # ==========================================
 st.set_page_config(page_title="工作場所融合度 AI 健檢系統", page_icon="⚖️", layout="centered")
 
+# 終極版全自動適應 CSS：移除導致文字變黑的強制設定，改用標準 CSS 變數全面防禦 Dark Mode 隱形問題
 st.markdown("""
 <style>
-    html, body, [class*="st-"] { font-family: '微軟正黑體', sans-serif !important; color: #262730 !important; }
+    html, body { font-family: '微軟正黑體', sans-serif !important; }
     .stApp { background: linear-gradient(to bottom, #E8F1F8 0%, #FFFFFF 100%) !important; }
-    h1 { color: #003366 !important; text-align: center; border-bottom: 3px solid #00509E; padding-bottom: 10px; }
-    .stChatMessage { background-color: #FFFFFF !important; border-radius: 15px; border: 1px solid #D1E1F0; box-shadow: 0 4px 8px rgba(0,0,0,0.03); color: #262730 !important; }
+    
+    /* 網頁大標題 CSS */
+    .main-title {
+        color: #003366 !important; 
+        text-align: center; 
+        border-bottom: 3px solid #00509E; 
+        padding-bottom: 10px;
+        font-size: 2.2rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+    
+    /* === 核心修正：強制輸入框文字與光標在明亮/深色模式下都清晰可見 === */
+    .stChatInput p, .stChatInput textarea {
+        color: var(--text-color, #262730) !important;
+        -webkit-text-fill-color: var(--text-color, #262730) !important;
+        caret-color: var(--text-color, #262730) !important; /* 確保游標閃爍可見 */
+    }
+    
+    /* 修正深色模式下輸入框預設提示字(Placeholder)的顏色 */
+    .stChatInput textarea::placeholder {
+        color: #888888 !important;
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
+    }
+    
+    /* 確保歷史對話框內部的 Markdown 文字不會因深色模式變白而隱形 */
+    .stChatMessage { 
+        background-color: #FFFFFF !important; 
+        border-radius: 15px; 
+        border: 1px solid #D1E1F0; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.03); 
+    }
+    .stChatMessage p, .stChatMessage li, .stChatMessage span, .stChatMessage div {
+        color: #262730 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,10 +98,10 @@ with st.sidebar:
             if found:
                 break
                 
-        SELECTED_MODEL = st.selectbox("請選擇 AI 模型 (已自動為您預設極速 Flash 模型)", available_models, index=default_index)
+        SELECTED_MODEL = st.selectbox("請選擇 AI 模型", available_models, index=default_index)
     except Exception as e:
         st.error(f"讀取模型清單失敗：{e}")
-        SELECTED_MODEL = "models/gemini-2.5-flash" # 最新高速預設案
+        SELECTED_MODEL = "models/gemini-2.5-flash"
 
 # ==========================================
 # 3. 完美版寫入函數 (Google Sheets 同行寫入與多欄位併存更新機制)
@@ -83,7 +118,6 @@ def log_to_sheets_perfect(user_msg, ai_reply, feedback="", status="已回答", n
         row_data = [current_time, user_msg, ai_reply, feedback, status, name, gender, phone, email, note]
         sheet.append_row(row_data)
         
-        # 取得剛才寫入的列號 (總行數即為當前寫入的列)
         return len(sheet.get_all_values())
     except Exception as e:
         return None
@@ -136,7 +170,7 @@ SYSTEM_PROMPT = """
 
 【🚨 防幻想與字數限制原則】
 1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
-2. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
+2. 直接回覆：首先承接使用者的情緒，給予溫慢與支持的回應，並「優先直接針對問題給出明確的答案」。
 3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
 4. 🎯 精準鎖定法規與正名 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。【極度重要】原法規已修法更名，你在回覆中「絕對禁止」輸出舊稱「性別工作平等法」，請務必全面使用最新名稱「性別平等工作法」。絕對禁止為了湊字數跨界亂引法條。
 5. 🛑 絕對禁止捏造字號：在【法令分析】中，「絕對禁止」自行發明、拼湊或臆測任何具體的「函釋字號」、「文號」、「判決字號」或「發布日期」。除非你在上傳的 PDF 手冊中或大腦知識庫中確實查到該函釋字號，否則一律使用「依據主管機關相關函釋精神」或「依據實務見解」帶過。
@@ -165,7 +199,6 @@ SYSTEM_PROMPT = """
 # ==========================================
 @st.cache_resource(show_spinner=False)
 def get_cached_gemini_files():
-    """ 透過快取，使知識庫在伺服器全域僅需加載一次 """
     files_to_upload = ["114年勞動基準法規彙編.pdf", "職場工作平權宣導手冊.pdf"]
     uploaded_files = []
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -213,6 +246,12 @@ if "chat_session" not in st.session_state or st.session_state.get("current_model
         st.error(f"⚠️ 模型初始化失敗：{e}")
         st.stop()
 
+# ==========================================
+# 🛑 UI 佈局區：渲染標題與歷史訊息 (修正標題不見問題)
+# ==========================================
+st.markdown('<div class="main-title">⚖️ 工作場所融合度 AI 健檢系統</div>', unsafe_allow_html=True)
+st.markdown("歡迎使用！顧問已載入最新《114年勞動基準法規彙編》及《職場工作平權宣導手冊》，為您進行專業法理分析。")
+
 # --- 顯示歷史訊息 ---
 for message in st.session_state.chat_session.history:
     if message.role == "user" and "請徹底熟讀以上兩份官方手冊" in message.parts[-1].text:
@@ -228,7 +267,7 @@ for message in st.session_state.chat_session.history:
 if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
     st.chat_message("user").markdown(user_input)
     with st.chat_message("assistant"):
-        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
+        with st.spinner(f"顧問正進行深度分析中... 請稍候"):
             try:
                 response = st.session_state.chat_session.send_message(user_input)
                 st.markdown(response.text)
@@ -236,7 +275,7 @@ if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，
                 st.session_state.last_user_msg = user_input
                 st.session_state.last_ai_reply = response.text
                 
-                # 民眾一發問，即刻於背景將提問與回答寫入新的一行，並記下該行號碼
+                # 發問完即刻寫入新的一行
                 current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
                 st.session_state.current_row_index = current_row
                 
