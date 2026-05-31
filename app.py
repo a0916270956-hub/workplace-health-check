@@ -201,7 +201,7 @@ SYSTEM_PROMPT = """
 
 【🚨 防幻想與字數限制原則】
 1. 嚴格字數限制：每次回覆的「總字數請務必嚴格控制在 500 字以內」。文字需極度精簡、直擊核心，切勿長篇大論。
-2. 直接回覆：首先承接使用者的情緒，給予溫慢與支持的回應，並「優先直接針對問題給出明確的答案」。
+2. 直接回覆：首先承接使用者的情緒，給予溫暖與支持的回應，並「優先直接針對問題給出明確的答案」。
 3. 問題概述與法令分析：接著，請明確標示出【問題概述】與【法令分析】兩個段落。
 4. 🎯 精準鎖定法規與正名 (寧缺勿濫)：在內心判斷爭議類型後，懷孕/性別歧視僅限《性別平等工作法》；年齡/身障歧視僅限《就業服務法》；一般勞動條件(薪資/工時/資遣)僅限《勞動基準法》。你在回覆中「絕對禁止」輸出舊稱「性別工作平等法」，請務必全面使用最新名稱「性別平等工作法」。
 5. 🛑 絕對禁止捏造字號：在【法令分析】中，若非手冊內或上述確鑿記載的字號，「絕對禁止」自行發明或臆測任何具體的文號或日期。
@@ -211,11 +211,11 @@ SYSTEM_PROMPT = """
    * 勞動部勞動法令查詢系統：https://laws.mol.gov.tw/
    * 全國法規資料庫：https://law.moj.gov.tw/
    
-   📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府法制及勞動處關心您。**
+   📞 **如仍有疑義歡迎來電 02-24287801，基隆市政府社會處關心您。**
 
 【📖 黃金標準問答範例參考】
 【問題概述】您面臨的是通勤災害是否認定為職業災害的爭議。
-【法令分析】依據改制前行政院勞工委員會（現勞動部）中華民國75年6月23日台內勞字第410301號函釋意旨，勞工於上下班途中，若於適當時間，以適當交通方法，自住宅往返就業場所之轉赴途中發生車禍，其非因故意或重大過失所致者，應屬職業災害。然而，若勞工下班後未直接返家，境偏離常軌發生車禍，則難以認定為職業災害。
+【法令分析】依據改制前行政院勞工委員會（現勞動部）中華民國75年6月23日台內勞字第410301號函釋意旨，勞工於上下班途中，若於適當時間，以適當交通方法，自住宅往返就業場所之轉赴途中發生車禍，其非因故意或重大過失所致者，應屬職業災害。然而，若勞工下班後未直接返家，中途偏離常軌發生車禍，則難以認定為職業災害。
 """
 
 # ==========================================
@@ -264,6 +264,7 @@ if "chat_session" not in st.session_state or st.session_state.get("current_model
         
         st.session_state.chat_session = model.start_chat(history=initial_history)
         st.session_state.current_model_name = SELECTED_MODEL
+        st.session_state.question_count = 0  # 🎯 新增：提問次數計數器
         
     except Exception as e:
         st.error(f"⚠️ 模型初始化失敗：{e}")
@@ -286,29 +287,45 @@ for message in st.session_state.chat_session.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# --- 處理使用者提問 (問完即刻寫入試算表同行) ---
-if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
-    st.chat_message("user").markdown(user_input)
-    with st.chat_message("assistant"):
-        with st.spinner(f"AI顧問正進行深度分析中... 請稍候"):
-            try:
-                response = st.session_state.chat_session.send_message(user_input)
-                st.markdown(response.text)
-                
-                st.session_state.last_user_msg = user_input
-                st.session_state.last_ai_reply = response.text
-                
-                current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
-                st.session_state.current_row_index = current_row
-                
-            except Exception as e:
-                error_msg = str(e)
-                if "429" in error_msg:
-                    st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
-                elif "404" in error_msg:
-                    st.error(f"⚠️ 模型連線錯誤 (404)。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
-                else:
-                    st.error(f"⚠️ 連線錯誤：{error_msg}")
+# --- 處理使用者提問 (加入次數防護與 Token 瘦身) ---
+MAX_QUESTIONS = 5  # 設定單次連線最高提問次數
+
+# 若超過次數限制，自動隱藏輸入框並引導至表單
+if st.session_state.get("question_count", 0) >= MAX_QUESTIONS:
+    st.warning("⚠️ 為了確保服務品質並提供更精準的協助，您本次的 AI 快速諮詢額度已滿。請點擊下方「填寫專人服務表單」，由社會處同仁為您接手處理。")
+    st.session_state.show_expert_form = True  # 自動展開專人表單
+else:
+    if user_input := st.chat_input("請簡單描述您的狀況（為保護隱私，請勿在此處輸入真實姓名或身分證字號）..."):
+        
+        # 提問次數加 1
+        st.session_state.question_count = st.session_state.get("question_count", 0) + 1
+        
+        st.chat_message("user").markdown(user_input)
+        with st.chat_message("assistant"):
+            with st.spinner(f"AI顧問正進行深度分析中... 請稍候 (目前提問次數：{st.session_state.question_count}/{MAX_QUESTIONS})"):
+                try:
+                    # 🎯 歷史紀錄瘦身：避免 Token 暴增
+                    # 只保留 index 0, 1 (初始的 PDF 手冊) + 最近 4 筆對話(2輪問答)
+                    if len(st.session_state.chat_session.history) > 6:
+                        st.session_state.chat_session.history = st.session_state.chat_session.history[:2] + st.session_state.chat_session.history[-4:]
+
+                    response = st.session_state.chat_session.send_message(user_input)
+                    st.markdown(response.text)
+                    
+                    st.session_state.last_user_msg = user_input
+                    st.session_state.last_ai_reply = response.text
+                    
+                    current_row = log_to_sheets_perfect(user_input, response.text, feedback="尚無評分", status="已回答")
+                    st.session_state.current_row_index = current_row
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    if "429" in error_msg:
+                        st.error("🌟 系統目前繁忙中（配額暫時已達上限，請重整網頁或稍候片刻再試）。")
+                    elif "404" in error_msg:
+                        st.error(f"⚠️ 模型連線錯誤 (404)。👉 **請點擊左上角的側邊欄，嘗試切換其他模型！**")
+                    else:
+                        st.error(f"⚠️ 連線錯誤：{error_msg}")
 
 # ==========================================
 # 6. 📝 滿意度評分（1-10分滑動條）與專人補充表單 (完美同行併存更新)
@@ -339,7 +356,8 @@ if "last_ai_reply" in st.session_state:
     if st.session_state.get("show_expert_form", False):
         st.markdown("---")
         with st.form("pro_contact"):
-            st.info("請填寫聯繫資訊，基隆市政府法制及勞動處人員將於上班時間聯繫您。")
+            # 🎯 修正聯絡單位名稱
+            st.info("請填寫聯繫資訊，基隆市政府社會處人員將於上班時間聯繫您。")
             name = st.text_input("您的姓名/稱呼")
             user_gender = st.radio("您的性別", ["男", "女", "官方不便透露"], horizontal=True)
             contact_method = st.radio("您希望專人如何回覆您？", ["電話回覆", "Email 回覆"], horizontal=True)
@@ -359,7 +377,8 @@ if "last_ai_reply" in st.session_state:
                 elif contact_method == "Email 回覆" and not email:
                     st.error("⚠️ 您選擇了「Email 回覆」，請務必填寫 Email。")
                 else:
-                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else ""
+                    # 🎯 針對性別選項提供合適的預設稱呼
+                    title = "先生" if user_gender == "男" else "女士（小姐）" if user_gender == "女" else "市民朋友"
                     final_note = f"【希望以 {contact_method}】\n備註: {note}" if note else f"【希望以 {contact_method}】"
                     
                     target_row = st.session_state.get("current_row_index")
@@ -375,10 +394,11 @@ if "last_ai_reply" in st.session_state:
                             note=final_note
                         )
                         
-                        notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府法制及勞動處同仁盡速至試算表查看同一行完整紀錄。"
+                        # 🎯 修正 LINE 通知內的承辦單位名稱
+                        notify_msg = f"\n🚨【專人服務請求】🚨\n民眾：{name} {title}\n電話：{phone}\nEmail：{email}\n偏好：{contact_method}\n備註：{note}\n請基隆市政府社會處同仁盡速至試算表查看同一行完整紀錄。"
                         send_line_message(notify_msg)
                         
-                        st.success(f"{name} {title} 您好，您的申請已在同筆提問紀錄中完成更新！專人將儘速與您聯繫。")
+                        st.success(f"{name} {title} 您好，您的申請已在同筆提問紀錄中完成更新！社會處專人將儘速與您聯繫。")
                         st.session_state.show_expert_form = False
                     else:
                         st.error("❌ 找不到對應的提問列，請重新整理網頁或稍後重試。")
